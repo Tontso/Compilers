@@ -1,13 +1,21 @@
 #Toncho Tonchev  3168  cse53168    
 #Christos Katsios  3002  cse53002
-
+#repair div sto def condition(),kai sto idtail to token apo '(' se leftparen_token.
 import sys
 import os
 line = 1
 token = ''
 word = ''
 char = ''
-f = open('testFile.txt','r')
+
+#Intermediate Code Generator
+listOfAllQuards = []     # a list of all quartets 
+countQuads = 1           # quartet counter
+t_i = 1                  # T_i counter
+listOFTempVar = []       # list to store temp var (T_)
+isFuncFlag = 0
+id = ''
+f = open('check1.txt','r')
 
 keywords = {
     'program' : 'program_token',
@@ -176,7 +184,7 @@ def lex():
                 f.seek(f.tell() - 1)
                 next = False
         elif state == 6:
-            if (char.isdigit() or char.isalpha()):
+            if (char.isdigit() or char.isalpha() or char == '(' ):
                 next = False
                 f.seek(f.tell() - 1)
             elif char == '/':
@@ -217,6 +225,56 @@ def lex():
     print ("\n")
     return token,word
 
+#Useful funcions for intermediate code
+def nextQuard():
+    global countQuads
+    return countQuads
+
+
+def genQuad(first, second, third, fourth):
+    global countQuads
+    global listOfAllQuards
+    list =  []
+    list = [nextQuard()]
+    list += [first] + [second] + [third] + [fourth]
+    countQuads += 1
+    listOfAllQuards += [list]
+    return list
+
+
+def newTemp():
+    global t_i
+    global listOFTempVar
+    list = ['T_']
+    list.append(str(t_i))
+    tempVar = "".join(list)
+    t_i += 1
+    listOFTempVar += [tempVar] #Save them in list  tempVarList (is used in C-Code)
+    return tempVar
+
+
+def emptyList():
+    poiterList = []
+    return poiterList
+
+
+def makeList(x):
+    listThis = [x]
+    return listThis
+
+
+def merge(list1, list2):
+    list = []
+    list += list1 + list2
+    return list
+
+def backPatch(list,z):
+    global listOfAllQuards
+    for i in range(len(list)):
+        for j in range(len(listOfAllQuards)):
+            if (list[i] == listOfAllQuards[j][0] and listOfAllQuards[j][4] == '_'):
+                listOfAllQuards[j][4] = z
+                j = len(listOfAllQuards)
 
 
 # ----------------------------------------------------------------------------------
@@ -376,10 +434,10 @@ def formalparitem():
         exit(1)
 
 
-
 def statement():
-    global token,word,line
+    global token,word,line,id
     if (token == 'id_token'):
+        id = word 
         token,word = lex()
         assignment_stat()
     elif (token == 'if_token'):
@@ -419,10 +477,17 @@ def statement():
 
 
 def assignment_stat():
-    global token,word,line
+    # S -> id := E{P1}
+    global token, word, line, isFuncFlag, id
     if(token == 'assignment_token'):
         token,word = lex()
-        expression()
+        Eplace = expression()
+        #{P1}:
+        if(isFuncFlag == 1):		# if its function
+            genQuad(':=', temp, '_', id)
+            isFuncFlag = 0
+        else:
+            genQuad(':=', Eplace, '_', id)
     else:
         print("SyntaxError :  expected  ':=' in line : " , line)
         exit(1)
@@ -577,7 +642,8 @@ def call_stat():
     global token,word,line
     if(token == 'id_token'):
         token,word = lex()
-        actualpars()
+        idName = word
+        actualpars(0, idName)
     else:
         print("SyntaxError :  expected  'id' parametar in line : " , line)
         exit(1)
@@ -586,9 +652,12 @@ def call_stat():
 
 
 def return_stat():
+    # S -> return (E) {P1}
     global token,word,line
     token,word = lex()
-    expression()
+    Eplace = expression()
+    #{P1}
+    genQuad('retv', Eplace, '_', '_')
 
 
 
@@ -614,32 +683,46 @@ def input_stat():
 
 
 def print_stat():
+    # S -> print (E) {P2}
     global token,word,line
     if(token == 'leftParentheses_token'):
         token,word = lex()
-        expression()
+        Eplace = expression()
         if(token == 'rightParentheses_token'):
             token,word = lex()
-            return
+            #{P2}
+            genQuad('out', Eplace, '_', '_')
         else:
             print("SyntaxError :  expected  ')' in line : " , line)
             exit(1)
     else:
         print("SyntaxError :  expected  '(' in line : " , line)
         exit(1)
+    return
 
 
 
-def actualpars():
-    global token,word,line
+def actualpars(isFuncFlag, idName):
+    global token,word,line,temp
     if(token == 'leftParentheses_token'):
         token,word = lex()
         actualparlist()
         if(token == 'rightParentheses_token'):
             token,word = lex()
+            #If it is function
+            if(isFuncFlag == 1):
+                w = newTemp()
+                genQuad('par', w, 'RET', '_')
+                genQuad('call', idName, '_', '_')
+
+                temp = w
+            else:
+                genQuad('call', idName, '_', '_')
+
         else:
             print("SyntaxError :  expected ')01' in line : " , line)
             exit(1)
+    return
 
 
 
@@ -657,12 +740,14 @@ def actualparitem():
     global token,word,line
     if(token == 'in_token'):
         token,word = lex()
-        expression()
+        thisExpression = expression()
+        genQuad('par', thisExpression, 'CV', '_')
     elif (token == 'inout_token'):
         token,word = lex()
         if(token =='id_token'):
+            genQuad('par', token[0], 'REF', '_')
             token,word = lex()
-            return
+            #return
         else:
             print("SyntaxError :  expected 'id' in line : " , line)
             exit(1)
@@ -726,51 +811,72 @@ def boolfactor():
 
 
 def expression():
+    # E -> T1(+- T2 {P1}) *{P2}
     global token,word,line
     optional_sign()
-    term()
+    T1place = term()
     while (token == 'plus_token' or token == 'minus_token'):
-        add_oper()
-        term()
-
+        plusOrMinus = add_oper()
+        T2place = term()
+        #{P1}
+        w = newTemp()
+        genQuad(plusOrMinus, T1place, T2place, w)
+        print("To +/i einai:",plusOrMinus)
+        T1place = w
+    #{P2}
+    Eplace = T1place
+    return Eplace
         
 
 def term():
+    # T-> F1 (mulOper F2 {P1})* {P2}
     global token,word,line
-    factor()
+    F1place = factor()
     while( token == 'multiply_token' or token == 'div_token'):
-        mul_oper()
-        factor()
+        mulOrDiv = mul_oper()
+        F2place = factor()
+        #{P1}
+        w = newTemp()
+        genQuad(mulOrDiv, F1place, F2place, w)
+        F1place = w
+    #{P2}
+    Tplace = F1place
+    return Tplace
 
 
 
 def factor():
     global token,word,line
     if(token == 'number_token'):
+        fact = word
         token,word = lex()
-        return
+        #return
     elif(token == 'leftParentheses_token'):
         token,word = lex()
-        expression()
+        Eplace = expression()
         if(token == 'rightParentheses_token'):
+            fact = Eplace
             token,word = lex()
-            return
         else:
             print("SyntaxError :  expected ')' in line : " , line)
             exit(1)
     elif (token == 'id_token'):
+        fact = word
         token,word = lex()
-        idtail()
-        return
+        idtail(fact)
     else:
         print("SyntaxError :  expected 'id' or 'number' or 'expression' in line : " , line)
         exit(1) 
+    return fact
 
 
 
-def idtail():
-    global token,word,line
-    actualpars()
+def idtail(idName):
+    global token,word,line,isFuncFlag
+    if(token == 'leftParentheses_token'):
+        isFuncFlag = 1
+        actualpars(1, idName)
+        return
 
 
 
@@ -796,31 +902,38 @@ def relational_oper():
 def add_oper():
     global token,word,line
     if(token == 'plus_token'):
+        oper = word
         token,word = lex()
+        return oper
     elif(token == 'minus_token'):
+        oper = word
         token,word = lex()
-    else:
-        return
+        return oper
 
 
 
 def mul_oper():
     global token,word,line
     if(token == 'multiply_token'):
+        oper = word
         token,word = lex()
+        return oper      
     elif(token == 'div_token'):
+        oper = word
         token,word = lex()
-    else:
-        return
+        return oper
 
 
 
 def optional_sign():
     global token,word,line
-    add_oper()
-    return
+    addoper = add_oper()
+    return addoper
+
 
 
 
 token,word = lex()
 program()
+for i in range(len(listOfAllQuards)):
+	print (str(listOfAllQuards[i][0])+" "+listOfAllQuards[i][1]+" "+listOfAllQuards[i][2]+" "+listOfAllQuards[i][3]+" "+listOfAllQuards[i][4])
