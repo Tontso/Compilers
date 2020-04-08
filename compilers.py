@@ -15,7 +15,7 @@ t_i = 1                  # T_i counter
 listOFTempVar = []       # list to store temp var (T_)
 isFuncFlag = 0
 id = ''
-f = open('check1.txt','r')
+f = open('check2.txt','r')
 
 keywords = {
     'program' : 'program_token',
@@ -496,15 +496,24 @@ def assignment_stat():
 
 def if_stat():
     global token,word,line
+    # IS-> if C then {P1} BOS {P2} else() {P3}
     if(token == 'leftParentheses_token'):
         token,word = lex()
-        condition()
+        C = condition()
         if(token == 'rightParentheses_token'):
             token,word = lex()
             if(token == 'then_token'):
                 token,word = lex()
+                #{P1}
+                backPatch(C[0], nextQuard())
                 statements()
+                #{P2}
+                ifList = makeList(nextQuard())
+                genQuad('JUMP', '_', '_', '_')
+                backPatch(C[1], nextQuard())
                 elsepart()
+                #{P3}:
+                backPatch(ifList, nextQuard())
             else:
                 print("SyntaxError :  expected 'then' in line : " , line)
                 exit(1)
@@ -514,6 +523,9 @@ def if_stat():
     else:
         print("SyntaxError :  expected  '(' in line : " , line)
         exit(1)
+    IStrue = C[0]
+    ISfalse = C[1]
+    return IStrue, ISfalse
 
 
 
@@ -527,19 +539,31 @@ def elsepart():
 
 
 def while_stat():
+    # WS-> while ({P1} C) {P2} BOS {P3}
     global token,word,line
     if(token == 'leftParentheses_token'):
         token,word = lex()
-        condition()
+        #{P1}:
+        Cquad=nextQuard()
+        C = condition()
         if(token == 'rightParentheses_token'):
+            #{P2}
+            backPatch(C[0], nextQuard())
+
             token,word = lex()
             statements()
+            #{P3}
+            genQuad('JUMP', '_', '_', Cquad)
+            backPatch(C[1], nextQuard())  ##C[1] is list of false.
         else:
             print("SyntaxError :  expected  ')' in line : " , line)
             exit(1)
     else:
         print("SyntaxError :  expected  '(' in line : " , line)
         exit(1)
+    WStrue = C[0]
+    WSfalse = C[1]
+    return WStrue,WSfalse
 
 
 
@@ -641,8 +665,8 @@ def incase_stat():
 def call_stat():
     global token,word,line
     if(token == 'id_token'):
-        token,word = lex()
         idName = word
+        token,word = lex()
         actualpars(0, idName)
     else:
         print("SyntaxError :  expected  'id' parametar in line : " , line)
@@ -745,7 +769,7 @@ def actualparitem():
     elif (token == 'inout_token'):
         token,word = lex()
         if(token =='id_token'):
-            genQuad('par', token[0], 'REF', '_')
+            genQuad('par', word, 'REF', '_')
             token,word = lex()
             #return
         else:
@@ -759,35 +783,68 @@ def actualparitem():
 
 
 def condition():
+    #C-> BT1 {P1} (or {P2} BT2 {P3})*
     global token,word,line
-    boolterm()
+    Ctrue = []
+    Cfalse = []
+    BT1 = boolterm()
+    #{P1}
+    Ctrue = BT1[0]
+    Cfalse = BT1[1]
     while(token == 'or_token'): #repair code1
         token,word = lex()
-        boolterm()
-    return
+        #{P2}:
+        backPatch(Cfalse, nextQuard())
+        BT2 = boolterm()
+
+        #{P3}
+        Ctrue = merge(Ctrue , BT2[0])
+        Cfalse = BT2[1]
+    return Ctrue, Cfalse
 
 
 
 def boolterm():
+    # BT -> BF1 {P1} (and {P2} BF2 {P3})*
     global token,word,line
-    boolfactor()
+    BTtrue = []
+    BTfalse = []
+    BF1 = boolfactor()
+    #{P1}
+    BTtrue = BF1[0]
+    BTfalse = BF1[1]
+
     while(token == 'and_token'):
         token,word = lex()
-        boolfactor()
-    return
+        #{P2}
+        backPatch(BTtrue, nextQuard())
+        BF2 = boolfactor()
+        #{P3}
+        BTfalse = merge(BTfalse, BF2[1])
+        BTtrue = BF2[0]
+    return BTtrue,BTfalse
 
 
 
 def boolfactor():
     global token,word,line
+    BFtrue = []
+    BFfalse = []
+    Eplace1 = ''
+    Eplace2 = ''
+    relop = ''
+
     if(token == 'not_token'):
+        # BF-> not [C] {P1}
         token,word = lex()
         if(token == 'leftBracket_token'):
             token,word = lex()
-            condition()
+            C = condition()  #returns 2 lists (list of true & false), as tuples.
             if(token == 'rightBracket_token'):
                 token,word = lex()
-                return
+                #{P1}:
+                BFtrue = C[1]					#C[1] is list of false.
+                BFfalse = C[0]					#C[0] is list of true.
             else:
                 print("SyntaxError :  expected ']' in line : " , line)
                 exit(1)
@@ -795,18 +852,29 @@ def boolfactor():
             print("SyntaxError :  expected '[' after not in line : " , line)
             exit(1)
     elif (token == 'leftBracket_token'):
+        # BF-> [C] {P1}
         token,word = lex()
-        condition()
+        C = condition()
         if(token == 'rightBracket_token'):
             token,word = lex()
-            return
+            #{P1}:
+            BFtrue = C[0]						#C[0] is list of true.
+            BFfalse = C[1]						#C[1] is list of false.
         else:
             print("SyntaxError :  expected ']' in line : " , line)
             exit(1)
     else:
-        expression()
-        relational_oper()
-        expression()
+        # BF-> E1 relop E2 {P1}
+        Eplace1 = expression()
+        relop = relational_oper()
+        Eplace2 = expression()
+        
+        #{P1}
+        BFtrue=makeList(nextQuard())
+        genQuad(relop, Eplace1, Eplace2, '_')	#will be backPatched later on.
+        BFfalse=makeList(nextQuard())
+        genQuad('JUMP', '_', '_', '_')			#will be backPatched later on.
+    return BFtrue, BFfalse
 
 
 
@@ -821,7 +889,6 @@ def expression():
         #{P1}
         w = newTemp()
         genQuad(plusOrMinus, T1place, T2place, w)
-        print("To +/i einai:",plusOrMinus)
         T1place = w
     #{P2}
     Eplace = T1place
@@ -883,19 +950,28 @@ def idtail(idName):
 def relational_oper():
     global token,word,line
     if(token == 'equal_token'):
+        relod = word
         token,word = lex()
     elif(token == 'lessOrEqual_token'):
+        relod = word
         token,word = lex()
     elif(token == 'greaterOrEqual_token'):
+        relod = word
         token,word = lex()
     elif(token == 'greaterThan_token'):
+        relod = word
         token,word = lex()
     elif(token == 'lessThan_token'):
+        relod = word
         token,word = lex()
     elif(token == 'different_token'):
+        relod = word
         token,word = lex()
     else:
-        return
+        print('error: Missing = or < or <= or <> or >= or > in line ',line)
+        exit(1)
+    print("eimai relation oper kai to relod einai:",relod)
+    return relod
 
 
 
@@ -936,4 +1012,4 @@ def optional_sign():
 token,word = lex()
 program()
 for i in range(len(listOfAllQuards)):
-	print (str(listOfAllQuards[i][0])+" "+listOfAllQuards[i][1]+" "+listOfAllQuards[i][2]+" "+listOfAllQuards[i][3]+" "+listOfAllQuards[i][4])
+	print (str(listOfAllQuards[i][0])+" "+str(listOfAllQuards[i][1])+" "+str(listOfAllQuards[i][2])+" "+str(listOfAllQuards[i][3])+" "+str(listOfAllQuards[i][4]))
