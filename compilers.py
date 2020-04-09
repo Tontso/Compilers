@@ -1,6 +1,5 @@
 #Toncho Tonchev  3168  cse53168    
 #Christos Katsios  3002  cse53002
-#repair div sto def condition(),kai sto idtail to token apo '(' se leftparen_token.
 import sys
 import os
 line = 1
