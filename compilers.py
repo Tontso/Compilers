@@ -1,5 +1,5 @@
 #Toncho Tonchev  3168  cse53168    
-#Christos Katsios  3002  cse53002
+
 import sys
 import os
 line = 1
@@ -14,7 +14,7 @@ t_i = 1                  # T_i counter
 listOFTempVar = []       # list to store temp var (T_)
 isFuncFlag = 0
 id = ''
-f = open('check2.txt','r')
+f = open('check3.txt','r')
 
 keywords = {
     'program' : 'program_token',
@@ -286,10 +286,11 @@ def program():
     if(token == 'program_token'):
         token,word = lex()
         if(token == 'id_token'):
+            programName = word
             token,word = lex()
             if (token == 'leftCurly_token'):
                 token,word = lex()
-                block()
+                block(programName, 1)
                 if(token == 'rightCurly_token'):
                     print("successful compile program.")
                 else:
@@ -307,10 +308,14 @@ def program():
 
 
 
-def block():
+def block(programName,mainProgramFlag):
     declarations()
     subprograms()
+    genQuad('begin_block', programName, '_', '_')
     statements()
+    if(mainProgramFlag == 1):
+        genQuad('halt', '_', '_', '_')
+    genQuad('end_block', programName, '_', '_')
 
 
 
@@ -370,20 +375,21 @@ def varlist():
 def subprogram():
     global token,word,line
     if(token == 'id_token'):
+        name = word
         token,word = lex()
-        funcbody()
+        funcbody(name,0)
     else:
         print("SyntaxError :  'Wring function/procedure' name in line : " , line)
         exit(1)
 
 
 
-def funcbody():
+def funcbody(name,isFunction):
     global token,word,line
     formalpars()
     if(token == 'leftCurly_token'):
-        token,word = lex() 
-        block()
+        token,word = lex()
+        block(name, 0)
         if(token == 'rightCurly_token'):
             token,word = lex()
         else:
@@ -543,7 +549,7 @@ def while_stat():
     if(token == 'leftParentheses_token'):
         token,word = lex()
         #{P1}:
-        Cquad=nextQuard()
+        Cquad = nextQuard()
         C = condition()
         if(token == 'rightParentheses_token'):
             #{P2}
@@ -603,16 +609,23 @@ def exit_stat():
 
 def forcase_stat():
     global token,word,line
+    Cquad = nextQuard()
     while(token == 'when_token'):
         token,word = lex()
         if(token == 'leftParentheses_token'):
             token,word = lex()
-            condition()
+            C = condition()
+            #{P1}
+            backPatch(C[0],nextQuard())
+
             if(token == 'rightParentheses_token'):
                 token,word = lex()
                 if(token == 'colon_token'):
                     token,word = lex()
                     statements()
+                    #{P2}
+                    genQuad('JUMP', '_', '_', Cquad)
+                    backPatch(C[1], nextQuard())
                 else:
                     print("SyntaxError :  expected  ':' in line : " , line)
                     exit(1)
@@ -677,20 +690,24 @@ def call_stat():
 def return_stat():
     # S -> return (E) {P1}
     global token,word,line
-    token,word = lex()
     Eplace = expression()
+    #token,word = lex()
     #{P1}
     genQuad('retv', Eplace, '_', '_')
 
 
 
 def input_stat():
+    # S -> print (E) {P2}
     global token,word,line
     if(token == 'leftParentheses_token'):
         token,word = lex()
         if(token == 'id_token'):
+            iDplace = word
             token,word = lex()
             if(token == 'rightParentheses_token'):
+                #{P2}
+                genQuad('out', iDplace, '_', '_')
                 token,word = lex()
                 return
             else:
@@ -743,7 +760,7 @@ def actualpars(isFuncFlag, idName):
                 genQuad('call', idName, '_', '_')
 
         else:
-            print("SyntaxError :  expected ')01' in line : " , line)
+            print("SyntaxError :  expected ')' in line : " , line)
             exit(1)
     return
 
@@ -913,10 +930,10 @@ def term():
 
 def factor():
     global token,word,line
+    print ("eimai factor kai wo word einai:",word)
     if(token == 'number_token'):
         fact = word
         token,word = lex()
-        #return
     elif(token == 'leftParentheses_token'):
         token,word = lex()
         Eplace = expression()
@@ -931,7 +948,7 @@ def factor():
         token,word = lex()
         idtail(fact)
     else:
-        print("SyntaxError :  expected 'id' or 'number' or 'expression' in line : " , line)
+        print("SyntaxError :  expected 'id error' or 'number' or 'expression' in line : " , line)
         exit(1) 
     return fact
 
