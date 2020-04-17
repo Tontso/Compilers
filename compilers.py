@@ -1,4 +1,4 @@
-#Toncho Tonchev  3168  cse53168    
+#Toncho Tonchev  3168  cse53168
 
 import sys
 import os
@@ -8,11 +8,11 @@ word = ''
 char = ''
 
 #Intermediate Code Generator
-listOfAllQuards = []     # a list of all quartets 
-countQuads = 1           # quartet counter
+list_of_all_quads = []     # a list of all quartets
+count_quads = 1           # quartet counter
 t_i = 1                  # T_i counter
-listOFTempVar = []       # list to store temp var (T_)
-isFuncFlag = 0
+list_of_temp_var = []       # list to store temp var (T_)
+is_func_flag = 0
 id = ''
 f = open('check3.txt','r')
 
@@ -200,8 +200,8 @@ def lex():
                 return
             elif char =='*':
                 token = 'commentBlock_token'
-                comments ='' 
-                startComment = line
+                comments =''
+                start_comment = line
                 line += 1
                 while ('*/' not in comments):
                     char = f.read(1)
@@ -209,13 +209,13 @@ def lex():
                     if char == '\n':
                         line += 1
                     if char =='' and '*/' not in comments:
-                        print ("The commentsBlock never be closed in line :\nStart Comments from line:", startComment)
+                        print ("The commentsBlock never be closed in line :\nStart Comments from line:", start_comment)
                         exit(1)
                 if('//' in comments or '/*' in comments):
                     print("Cant use '//' or '/*' inside of comments.\nLine:",line-1)
                     exit(1)
                 lex()
-                return   
+                return
     #end While
     if word in keywords:
         token = keywords.get(word)
@@ -225,41 +225,41 @@ def lex():
     return token,word
 
 #Useful funcions for intermediate code
-def nextQuard():
-    global countQuads
-    return countQuads
+def next_quad():
+    global count_quads
+    return count_quads
 
 
-def genQuad(first, second, third, fourth):
-    global countQuads
-    global listOfAllQuards
+def gen_quad(first, second, third, fourth):
+    global count_quads
+    global list_of_all_quads
     list =  []
-    list = [nextQuard()]
+    list = [next_quad()]
     list += [first] + [second] + [third] + [fourth]
-    countQuads += 1
-    listOfAllQuards += [list]
+    count_quads += 1
+    list_of_all_quads += [list]
     return list
 
 
-def newTemp():
+def new_temp():
     global t_i
-    global listOFTempVar
+    global list_of_temp_var
     list = ['T_']
     list.append(str(t_i))
-    tempVar = "".join(list)
+    temp_variable = "".join(list)
     t_i += 1
-    listOFTempVar += [tempVar] #Save them in list  tempVarList (is used in C-Code)
-    return tempVar
+    list_of_temp_var += [temp_variable]         #Save them in list  temp_variableList (is used in C-Code)
+    return temp_variable
 
 
-def emptyList():
-    poiterList = []
-    return poiterList
+def empty_list():
+    poiter_list = []
+    return poiter_list
 
 
-def makeList(x):
-    listThis = [x]
-    return listThis
+def make_list(x):
+    this_list = [x]
+    return this_list
 
 
 def merge(list1, list2):
@@ -267,13 +267,13 @@ def merge(list1, list2):
     list += list1 + list2
     return list
 
-def backPatch(list,z):
-    global listOfAllQuards
+def back_patch(list,z):
+    global list_of_all_quads
     for i in range(len(list)):
-        for j in range(len(listOfAllQuards)):
-            if (list[i] == listOfAllQuards[j][0] and listOfAllQuards[j][4] == '_'):
-                listOfAllQuards[j][4] = z
-                j = len(listOfAllQuards)
+        for j in range(len(list_of_all_quads)):
+            if (list[i] == list_of_all_quads[j][0] and list_of_all_quads[j][4] == '_'):
+                list_of_all_quads[j][4] = z
+                j = len(list_of_all_quads)
 
 
 # ----------------------------------------------------------------------------------
@@ -286,11 +286,11 @@ def program():
     if(token == 'program_token'):
         token,word = lex()
         if(token == 'id_token'):
-            programName = word
+            program_name = word
             token,word = lex()
             if (token == 'leftCurly_token'):
                 token,word = lex()
-                block(programName, 1)
+                block(program_name, 1)
                 if(token == 'rightCurly_token'):
                     print("successful compile program.")
                 else:
@@ -308,14 +308,14 @@ def program():
 
 
 
-def block(programName,mainProgramFlag):
+def block(program_name,main_program_flag):
     declarations()
     subprograms()
-    genQuad('begin_block', programName, '_', '_')
+    gen_quad('begin_block', program_name, '_', '_')
     statements()
-    if(mainProgramFlag == 1):
-        genQuad('halt', '_', '_', '_')
-    genQuad('end_block', programName, '_', '_')
+    if(main_program_flag == 1):
+        gen_quad('halt', '_', '_', '_')
+    gen_quad('end_block', program_name, '_', '_')
 
 
 
@@ -330,7 +330,7 @@ def declarations():
             print("SyntaxError :  ';' was expected in line : " , line)
             exit(1)
 
-        
+
 
 def subprograms():
     global token,word,line
@@ -354,7 +354,7 @@ def statements():
             print("SyntaxError :  '}' was expected in line : " , line)
             exit(1)
     else:
-        statement()  
+        statement()
 
 
 
@@ -384,7 +384,7 @@ def subprogram():
 
 
 
-def funcbody(name,isFunction):
+def funcbody(name,is_function):
     global token,word,line
     formalpars()
     if(token == 'leftCurly_token'):
@@ -442,7 +442,7 @@ def formalparitem():
 def statement():
     global token,word,line,id
     if (token == 'id_token'):
-        id = word 
+        id = word
         token,word = lex()
         assignment_stat()
     elif (token == 'if_token'):
@@ -477,22 +477,22 @@ def statement():
         input_stat()
     elif (token == 'print_token'):
         token,word = lex()
-        print_stat()   
+        print_stat()
 
 
 
 def assignment_stat():
     # S -> id := E{P1}
-    global token, word, line, isFuncFlag, id
+    global token, word, line, is_func_flag, id
     if(token == 'assignment_token'):
         token,word = lex()
         Eplace = expression()
         #{P1}:
-        if(isFuncFlag == 1):		# if its function
-            genQuad(':=', temp, '_', id)
-            isFuncFlag = 0
+        if(is_func_flag == 1):		# if its function
+            gen_quad(':=', temp, '_', id)
+            is_func_flag = 0
         else:
-            genQuad(':=', Eplace, '_', id)
+            gen_quad(':=', Eplace, '_', id)
     else:
         print("SyntaxError :  expected  ':=' in line : " , line)
         exit(1)
@@ -510,15 +510,15 @@ def if_stat():
             if(token == 'then_token'):
                 token,word = lex()
                 #{P1}
-                backPatch(C[0], nextQuard())
+                back_patch(C[0], next_quad())
                 statements()
                 #{P2}
-                ifList = makeList(nextQuard())
-                genQuad('JUMP', '_', '_', '_')
-                backPatch(C[1], nextQuard())
+                if_list = make_list(next_quad())
+                gen_quad('jump', '_', '_', '_')
+                back_patch(C[1], next_quad())
                 elsepart()
                 #{P3}:
-                backPatch(ifList, nextQuard())
+                back_patch(if_list, next_quad())
             else:
                 print("SyntaxError :  expected 'then' in line : " , line)
                 exit(1)
@@ -528,9 +528,9 @@ def if_stat():
     else:
         print("SyntaxError :  expected  '(' in line : " , line)
         exit(1)
-    IStrue = C[0]
-    ISfalse = C[1]
-    return IStrue, ISfalse
+    is_true = C[0]
+    is_false = C[1]
+    return is_true, is_false
 
 
 
@@ -549,17 +549,17 @@ def while_stat():
     if(token == 'leftParentheses_token'):
         token,word = lex()
         #{P1}:
-        Cquad = nextQuard()
+        Cquad = next_quad()
         C = condition()
         if(token == 'rightParentheses_token'):
             #{P2}
-            backPatch(C[0], nextQuard())
+            back_patch(C[0], next_quad())
 
             token,word = lex()
             statements()
             #{P3}
-            genQuad('JUMP', '_', '_', Cquad)
-            backPatch(C[1], nextQuard())  ##C[1] is list of false.
+            gen_quad('jump', '_', '_', Cquad)
+            back_patch(C[1], next_quad())  ##C[1] is list of false.
         else:
             print("SyntaxError :  expected  ')' in line : " , line)
             exit(1)
@@ -609,14 +609,14 @@ def exit_stat():
 
 def forcase_stat():
     global token,word,line
-    Cquad = nextQuard()
+    Cquad = next_quad()
     while(token == 'when_token'):
         token,word = lex()
         if(token == 'leftParentheses_token'):
             token,word = lex()
             C = condition()
             #{P1}
-            backPatch(C[0],nextQuard())
+            back_patch(C[0],next_quad())
 
             if(token == 'rightParentheses_token'):
                 token,word = lex()
@@ -624,8 +624,8 @@ def forcase_stat():
                     token,word = lex()
                     statements()
                     #{P2}
-                    genQuad('JUMP', '_', '_', Cquad)
-                    backPatch(C[1], nextQuard())
+                    gen_quad('jump', '_', '_', Cquad)
+                    back_patch(C[1], next_quad())
                 else:
                     print("SyntaxError :  expected  ':' in line : " , line)
                     exit(1)
@@ -646,7 +646,7 @@ def forcase_stat():
     else:
         print("SyntaxError :  expected  'dafault' in line : " , line)
         exit(1)
-                    
+
 
 
 def incase_stat():
@@ -693,7 +693,7 @@ def return_stat():
     Eplace = expression()
     #token,word = lex()
     #{P1}
-    genQuad('retv', Eplace, '_', '_')
+    gen_quad('retv', Eplace, '_', '_')
 
 
 
@@ -707,7 +707,7 @@ def input_stat():
             token,word = lex()
             if(token == 'rightParentheses_token'):
                 #{P2}
-                genQuad('out', iDplace, '_', '_')
+                gen_quad('out', iDplace, '_', '_')
                 token,word = lex()
                 return
             else:
@@ -731,7 +731,7 @@ def print_stat():
         if(token == 'rightParentheses_token'):
             token,word = lex()
             #{P2}
-            genQuad('out', Eplace, '_', '_')
+            gen_quad('out', Eplace, '_', '_')
         else:
             print("SyntaxError :  expected  ')' in line : " , line)
             exit(1)
@@ -742,7 +742,7 @@ def print_stat():
 
 
 
-def actualpars(isFuncFlag, idName):
+def actualpars(is_func_flag, idName):
     global token,word,line,temp
     if(token == 'leftParentheses_token'):
         token,word = lex()
@@ -750,14 +750,14 @@ def actualpars(isFuncFlag, idName):
         if(token == 'rightParentheses_token'):
             token,word = lex()
             #If it is function
-            if(isFuncFlag == 1):
-                w = newTemp()
-                genQuad('par', w, 'RET', '_')
-                genQuad('call', idName, '_', '_')
+            if(is_func_flag == 1):
+                w = new_temp()
+                gen_quad('par', w, 'RET', '_')
+                gen_quad('call', idName, '_', '_')
 
                 temp = w
             else:
-                genQuad('call', idName, '_', '_')
+                gen_quad('call', idName, '_', '_')
 
         else:
             print("SyntaxError :  expected ')' in line : " , line)
@@ -781,11 +781,11 @@ def actualparitem():
     if(token == 'in_token'):
         token,word = lex()
         thisExpression = expression()
-        genQuad('par', thisExpression, 'CV', '_')
+        gen_quad('par', thisExpression, 'CV', '_')
     elif (token == 'inout_token'):
         token,word = lex()
         if(token =='id_token'):
-            genQuad('par', word, 'REF', '_')
+            gen_quad('par', word, 'REF', '_')
             token,word = lex()
             #return
         else:
@@ -810,7 +810,7 @@ def condition():
     while(token == 'or_token'): #repair code1
         token,word = lex()
         #{P2}:
-        backPatch(Cfalse, nextQuard())
+        back_patch(Cfalse, next_quad())
         BT2 = boolterm()
 
         #{P3}
@@ -833,7 +833,7 @@ def boolterm():
     while(token == 'and_token'):
         token,word = lex()
         #{P2}
-        backPatch(BTtrue, nextQuard())
+        back_patch(BTtrue, next_quad())
         BF2 = boolfactor()
         #{P3}
         BTfalse = merge(BTfalse, BF2[1])
@@ -884,12 +884,12 @@ def boolfactor():
         Eplace1 = expression()
         relop = relational_oper()
         Eplace2 = expression()
-        
+
         #{P1}
-        BFtrue=makeList(nextQuard())
-        genQuad(relop, Eplace1, Eplace2, '_')	#will be backPatched later on.
-        BFfalse=makeList(nextQuard())
-        genQuad('JUMP', '_', '_', '_')			#will be backPatched later on.
+        BFtrue = make_list(next_quad())
+        gen_quad(relop, Eplace1, Eplace2, '_')	#will be back_patched later on.
+        BFfalse = make_list(next_quad())
+        gen_quad('jump', '_', '_', '_')			#will be back_patched later on.
     return BFtrue, BFfalse
 
 
@@ -903,13 +903,13 @@ def expression():
         plusOrMinus = add_oper()
         T2place = term()
         #{P1}
-        w = newTemp()
-        genQuad(plusOrMinus, T1place, T2place, w)
+        w = new_temp()
+        gen_quad(plusOrMinus, T1place, T2place, w)
         T1place = w
     #{P2}
     Eplace = T1place
     return Eplace
-        
+
 
 def term():
     # T-> F1 (mulOper F2 {P1})* {P2}
@@ -919,8 +919,8 @@ def term():
         mulOrDiv = mul_oper()
         F2place = factor()
         #{P1}
-        w = newTemp()
-        genQuad(mulOrDiv, F1place, F2place, w)
+        w = new_temp()
+        gen_quad(mulOrDiv, F1place, F2place, w)
         F1place = w
     #{P2}
     Tplace = F1place
@@ -949,15 +949,15 @@ def factor():
         idtail(fact)
     else:
         print("SyntaxError :  expected 'id error' or 'number' or 'expression' in line : " , line)
-        exit(1) 
+        exit(1)
     return fact
 
 
 
 def idtail(idName):
-    global token,word,line,isFuncFlag
+    global token,word,line,is_func_flag
     if(token == 'leftParentheses_token'):
-        isFuncFlag = 1
+        is_func_flag = 1
         actualpars(1, idName)
         return
 
@@ -986,7 +986,6 @@ def relational_oper():
     else:
         print('error: Missing = or < or <= or <> or >= or > in line ',line)
         exit(1)
-    print("eimai relation oper kai to relod einai:",relod)
     return relod
 
 
@@ -1009,7 +1008,7 @@ def mul_oper():
     if(token == 'multiply_token'):
         oper = word
         token,word = lex()
-        return oper      
+        return oper
     elif(token == 'div_token'):
         oper = word
         token,word = lex()
@@ -1027,5 +1026,5 @@ def optional_sign():
 
 token,word = lex()
 program()
-for i in range(len(listOfAllQuards)):
-	print (str(listOfAllQuards[i][0])+" "+str(listOfAllQuards[i][1])+" "+str(listOfAllQuards[i][2])+" "+str(listOfAllQuards[i][3])+" "+str(listOfAllQuards[i][4]))
+for i in range(len(list_of_all_quads)):
+	print (str(list_of_all_quads[i][0])+" "+str(list_of_all_quads[i][1])+" "+str(list_of_all_quads[i][2])+" "+str(list_of_all_quads[i][3])+" "+str(list_of_all_quads[i][4]))
