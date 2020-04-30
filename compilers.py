@@ -9,12 +9,13 @@ char = ''
 
 #Intermediate Code Generator
 list_of_all_quads = []     # a list of all quartets
-count_quads = 1           # quartet counter
+count_quads = 1           # quarter counter
 t_i = 1                  # T_i counter
 list_of_all_temp_var = []       # list to store temp var (T_)
 is_function = 0
-f = open('check3.txt','r')
-
+f = open(sys.argv[1],'r')
+c_file = open('new_c_file.c', 'w')
+int_file = open('new_int_file.int', 'w')
 keywords = {
     'program' : 'program_token',
     'declare' : 'declare_token',
@@ -169,6 +170,8 @@ def lex():
                 word += char
             elif (char.isalpha() or char.isdigit()):
                 f.seek(f.tell() - 1)
+                next = False
+            elif(char == ' '):
                 next = False
             else:
                 print("SyntaxError : Unknown character:' %c ' \nLine %d :  "%( char, line))
@@ -339,6 +342,7 @@ def declarations():
     global token,word,line
 
     while(token == 'declare_token'):
+        c_file.write("int ")
         token,word = lex()
         varlist()
         if(token == 'semicolon_token'):
@@ -346,6 +350,7 @@ def declarations():
         else:
             print("SyntaxError :  ';' was expected in line : " , line)
             exit(1)
+    c_file.write(";\n\t")
 
 
 
@@ -381,10 +386,13 @@ def varlist():
     global token,word,line
 
     if(token == 'id_token'):
+        c_file.write(word)
         token ,word = lex()
         while(token == 'comma_token'):
+            c_file.write(word)
             token,word = lex()
             if(token == 'id_token' ):
+                c_file.write(word)
                 token,word = lex()
             else:
                 print("SyntaxError :  'id' was expected in line : " , line)
@@ -460,9 +468,10 @@ def formalparitem():
         else:
             print("SyntaxError : parameters was expected in line : " , line)
             exit(1)
-    else:
-        print("SyntaxError :  undeclere function/procedure parameters in line : " , line)
-        exit(1)
+    #else:
+    #    print("SyntaxError :  undeclere function/procedure parameters in line : " , line)
+    #    exit(1)
+    #
 
 
 
@@ -515,13 +524,13 @@ def assignment_stat(id):
 
     if(token == 'assignment_token'):
         token,word = lex()
-        Eplace = expression()
+        e_place = expression()
         #{P1}:
         if(is_function == 1):
             gen_quad(':=', temp, '_', id)
             is_function = 0
         else:
-            gen_quad(':=', Eplace, '_', id)
+            gen_quad(':=', e_place, '_', id)
     else:
         print("SyntaxError :  expected  ':=' in line : " , line)
         exit(1)
@@ -733,9 +742,9 @@ def return_stat():
     global token,word,line
     # S -> return (E) {P1}
 
-    Eplace = expression()
+    e_place = expression()
     #{P1}
-    gen_quad('retv', Eplace, '_', '_')
+    gen_quad('retv', e_place, '_', '_')
 
 
 
@@ -771,11 +780,11 @@ def print_stat():
 
     if(token == 'leftParentheses_token'):
         token,word = lex()
-        Eplace = expression()
+        e_place = expression()
         if(token == 'rightParentheses_token'):
             token,word = lex()
             #{P2}
-            gen_quad('out', Eplace, '_', '_')
+            gen_quad('out', e_place, '_', '_')
         else:
             print("SyntaxError :  expected  ')' in line : " , line)
             exit(1)
@@ -788,6 +797,7 @@ def print_stat():
 
 def actualpars(is_function, id_name):
     global token,word,line,temp
+
     if(token == 'leftParentheses_token'):
         token,word = lex()
         actualparlist()
@@ -938,18 +948,18 @@ def expression():
     # E -> T1(+/- T2 {P1}) *{P2}
 
     optional_sign()
-    T1place = term()
+    t1_place = term()
     while (token == 'plus_token' or token == 'minus_token'):
         plus_or_minus = add_oper()
         T2place = term()
         #{P1}
         w = new_temp()
-        gen_quad(plus_or_minus, T1place, T2place, w)
-        T1place = w
+        gen_quad(plus_or_minus, t1_place, T2place, w)
+        t1_place = w
     #{P2}
-    Eplace = T1place
+    e_place = t1_place
 
-    return Eplace
+    return e_place
 
 
 
@@ -957,18 +967,18 @@ def term():
     global token,word,line
     # T-> F1 ( (* or /) F2 {P1} )* {P2}
 
-    F1place = factor()
+    f1_place = factor()
     while( token == 'multiply_token' or token == 'div_token'):
         mul_or_div = mul_oper()
-        F2place = factor()
+        f2_place = factor()
         #{P1}
         w = new_temp()
-        gen_quad(mul_or_div, F1place, F2place, w)
-        F1place = w
+        gen_quad(mul_or_div, f1_place, f2_place, w)
+        f1_place = w
     #{P2}
-    Tplace = F1place
+    t_place = f1_place
 
-    return Tplace
+    return t_place
 
 
 
@@ -976,34 +986,35 @@ def factor():
     global token,word,line
 
     if(token == 'number_token'):
-        Fplace = word
+        f_place = word
         token,word = lex()
     elif(token == 'leftParentheses_token'):
         token,word = lex()
-        Eplace = expression()
+        e_place = expression()
         if(token == 'rightParentheses_token'):
-            Fplace = Eplace
+            f_place = e_place
             token,word = lex()
         else:
             print("SyntaxError :  expected ')' in line : " , line)
             exit(1)
     elif (token == 'id_token'):
-        Fplace = word
+        f_place = word
         token,word = lex()
-        idtail(Fplace)
+        idtail(f_place)
     else:
         print("SyntaxError :  expected 'id error' or 'number' or 'expression' in line : " , line)
         exit(1)
-    return Fplace
+    return f_place
 
 
 
 def idtail(idName):
     global token,word,line,is_function
+
     if(token == 'leftParentheses_token'):
         is_function = 1
         actualpars(1, idName)
-
+        return
 
 
 
@@ -1066,9 +1077,65 @@ def optional_sign():
     return addoper
 
 
+def create_int_file():
+    global int_file
+
+    for i in range(len(list_of_all_quads)):
+        int_file.write(str(list_of_all_quads[i][0]))
+        int_file.write(" ")
+        int_file.write(str(list_of_all_quads[i][1]))
+        int_file.write(" ")
+        int_file.write(str(list_of_all_quads[i][2]))
+        int_file.write(" ")
+        int_file.write(str(list_of_all_quads[i][3]))
+        int_file.write(" ")
+        int_file.write(str(list_of_all_quads[i][4]))
+        int_file.write("\n")
+
+
+
+def create_c_file():
+	global list_of_all_temp_var,list_of_all_quads
+
+	if(len(list_of_all_temp_var)!=0):
+		c_file.write("int ")
+	for i in range(len(list_of_all_temp_var)):
+		c_file.write(list_of_all_temp_var[i])
+		if(len(list_of_all_temp_var) == i+1):
+			c_file.write(";\n\n\t")
+		else:
+			c_file.write(",")
+
+	for j in range(len(list_of_all_quads)):
+		if(list_of_all_quads[j][1] == 'begin_block'):
+			c_file.write("L_"+str(j+1)+":\n\t")
+		elif(list_of_all_quads[j][1] == ":="):
+			c_file.write("L_"+str(j+1)+": "+ list_of_all_quads[j][4]+"="+list_of_all_quads[j][2]+";\n\t")
+		elif(list_of_all_quads[j][1] == "+" or list_of_all_quads[j][1] == "-" or list_of_all_quads[j][1] == "*" or list_of_all_quads[j][1] == "/"):
+			c_file.write("L_"+str(j+1)+": "+ list_of_all_quads[j][4]+"="+list_of_all_quads[j][2]+""+list_of_all_quads[j][1]+"" +list_of_all_quads[j][3]+";\n\t")
+		elif(list_of_all_quads[j][1] == "jump"):
+			c_file.write("L_"+str(j+1)+": "+"goto L_"+str(list_of_all_quads[j][4])+ ";\n\t")
+		elif(list_of_all_quads[j][1] == "<" or list_of_all_quads[j][1] == ">" or list_of_all_quads[j][1] == ">=" or list_of_all_quads[j][1] == "<="):
+			c_file.write("L_"+str(j+1)+": "+"if ("+list_of_all_quads[j][2]+""+ list_of_all_quads[j][1] +""+list_of_all_quads[j][3]+") goto L_"+str(list_of_all_quads[j][4])+";\n\t")
+		elif(list_of_all_quads[j][1] == "<>"):
+			c_file.write("L_"+str(j+1)+": "+"if ("+str(list_of_all_quads[j][2])+"!="+str(list_of_all_quads[j][3])+") goto L_"+str(list_of_all_quads[j][4])+";\n\t")
+		elif(list_of_all_quads[j][1] == "="):
+			c_file.write("L_"+str(j+1)+": "+"if ("+list_of_all_quads[j][2]+"=="+list_of_all_quads[j][3]+") goto L_"+str(list_of_all_quads[j][4])+";\n\t")
+		elif(list_of_all_quads[j][1] == "out"):
+			c_file.write("L_"+str(j+1)+": "+"printf(\""+list_of_all_quads[j][2]+"= %d\", "+list_of_all_quads[j][2]+");\n\t")
+		elif(list_of_all_quads[j][1] == 'halt'):
+			c_file.write("L_"+str(j+1)+": {}\n\t")
+
 
 
 token,word = lex()
+c_file.write("int main(){\n\t")
 program()
-for i in range(len(list_of_all_quads)):
-	print (str(list_of_all_quads[i][0])+" "+str(list_of_all_quads[i][1])+" "+str(list_of_all_quads[i][2])+" "+str(list_of_all_quads[i][3])+" "+str(list_of_all_quads[i][4]))
+create_c_file()
+create_int_file()
+c_file.write("\n}")
+c_file.close()
+int_file.close()
+
+#for i in range(len(list_of_all_quads)):
+#	print (str(list_of_all_quads[i][0])+" "+str(list_of_all_quads[i][1])+" "+str(list_of_all_quads[i][2])+" "+str(list_of_all_quads[i][3])+" "+str(list_of_all_quads[i][4]))
