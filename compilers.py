@@ -298,6 +298,193 @@ def back_patch(list, label):
 # ----------------------------------------------------------------------------------
 
 
+
+
+#---------- Usefull Classes and Functions for Symbols Table ----------#
+
+
+
+class Argument:
+
+	def __init__(self):
+		self.name = ''		#Dinw to name gia na kserw poio Argument einai.
+		self.type = 'Int'	#All variables in this language will be Int.
+		self.parMode = ''	# 'CV', 'REF'
+
+
+
+class Entity:
+
+    def __init__(self):
+        self.name = ''
+        self.type = ''
+
+        self.variable = self.Variable()
+        self.subprogram = self.SubProgram()
+        self.parameter = self.Parameter()
+        self.tempVar = self.TempVar()
+
+
+    class Variable:
+
+        def __init__(self):
+            self.type = 'Int'
+            self.offset = 0
+
+
+    class SubProgram:
+
+        def __init__(self):
+            self.type = ''
+            self.startQuad = 0
+            self.frameLength = 0
+            self.argumentList = []
+
+
+    class Parameter:
+
+        def __init__(self):
+            self.mode = ''
+            self.offset = 0
+
+
+    class TempVar:
+
+        def __init__(self):
+            self.type = 'Int'
+            self.offset = 0
+
+
+
+class Scope:
+
+    def __init__(self):
+        self.name = ''
+        self.entityList = []
+        self.nestingLevel = 0
+        self.enclosingScope = None
+
+
+def new_argument(object):
+    global topScope
+
+    topScope.entityList[-1].subprogram.argumentList.append(object)
+
+
+def new_entity(object):
+    global topScope
+
+    topScope.entityList.append(object)
+
+
+topScope = None
+
+
+def new_scope(name):
+    global topScope
+
+    nextScope = Scope()
+    nextScope.name = name
+    nextScope.enclosingScope = topScope
+
+    if(topScope == None):
+        nextScope.nestingLevel = 0
+    else:
+        nextScope.nestingLevel = topScope.nestingLevel + 1
+
+    topScope = nextScope
+
+
+
+def delete_scope():
+    global topScope
+
+    freeScope = topScope
+    topScope = topScope.enclosingScope
+    del freeScope
+
+
+
+def compute_offset():
+    global topScope
+
+    counter = 0
+    if(topScope.entityList is not []):
+        for ent in (topScope.entityList):
+            if(ent.type == 'VAR' or ent.type == 'TEMP' or ent.type == 'PARAM'):
+                counter += 1
+
+    offset = 12 + (counter * 4)
+
+    return offset
+
+
+
+def compute_startQuad():
+    global topScope
+
+    topScope.enclosingScope.entityList[-1].subprogram.startQuad = next_quad()
+
+
+
+def compute_framelength():
+    global topScope
+
+    topScope.enclosingScope.entityList[-1].subprogram.frameLength = compute_offset()
+
+
+
+def add_parameters():
+    global topScope
+
+    for arg in topScope.enclosingScope.entityList[-1].subprogram.argumentList:
+        ent = Entity()
+        ent.name = arg.name
+        ent.type = 'PARAM'
+        ent.parameter.mode = arg.parMode
+        ent.parameter.offset = compute_offset()
+        new_entity(ent)
+
+
+
+def print_Symbol_table():
+	'Prints Symbol-Table: Scopes, Entities, Arguments'
+	global topscope
+
+	print("########################################################################################")
+	print("")
+
+	sco = topScope
+	while sco != None:
+		print("SCOPE: "+"name:"+sco.name+" nestingLevel:"+str(sco.nestingLevel))
+		#print(len(sco.enclosingScope))
+		print("\tENTITIES:")
+		for ent in sco.entityList:
+			if(ent.type == 'VAR'):
+				print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t variable-type:"+ent.variable.type+"\t offset:"+str(ent.variable.offset))
+			elif(ent.type == 'TEMP'):
+				print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t temp-type:"+ent.tempVar.type+"\t offset:"+str(ent.tempVar.offset))
+			elif(ent.type == 'SUBPR'):
+				if(ent.subprogram.type == 'Function'):
+					print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t function-type:"+ent.subprogram.type+"\t startQuad:"+str(ent.subprogram.startQuad)+"\t frameLength:"+str(ent.subprogram.frameLength))
+					print("\t\tARGUMENTS:")
+					for arg in ent.subprogram.argumentList:
+						print("\t\tARGUMENT: "+" name:"+arg.name+"\t type:"+arg.type+"\t parMode:"+arg.parMode)
+				elif(ent.subprogram.type == 'Procedure'):
+					print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t procedure-type:"+ent.subprogram.type+"\t startQuad:"+str(ent.subprogram.startQuad)+"\t frameLength:"+str(ent.subprogram.frameLength))
+					print("\t\tARGUMENTS:")
+					for arg in ent.subprogram.argumentList:
+						print("\t\tARGUMENT: "+" name:"+arg.name+"\t type:"+arg.type+"\t parMode:"+arg.parMode)
+			elif(ent.type == 'PARAM'):
+				print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t mode:"+ent.parameter.mode+"\t offset:"+str(ent.parameter.offset))
+		sco = sco.enclosingScope
+
+	print("########################################################################################")
+
+# ----------------------------------------------------------------------------------
+
+
+
 #---------- Syntax Analyzer ----------#
 def program():
     global token,word,line
@@ -328,13 +515,28 @@ def program():
 
 
 def block(program_name, is_main_program):
+    new_scope(program_name)
+    if(is_main_program != 1):
+        add_parameters()
+
     declarations()
     subprograms()
     gen_quad('begin_block', program_name, '_', '_')
+    if(is_main_program != 1):
+        compute_startQuad()
     statements()
     if(is_main_program == 1):
         gen_quad('halt', '_', '_', '_')
+    else:
+        compute_framelength()
+
     gen_quad('end_block', program_name, '_', '_')
+
+    print("Print Symbol-Table:")
+    print_Symbol_table()
+
+    delete_scope()
+    print("Last scope deleted.")
 
 
 
@@ -387,12 +589,26 @@ def varlist():
 
     if(token == 'id_token'):
         c_file.write(word)
+
+        ent = Entity()							#Create an Entity
+        ent.type = 'VAR'						#
+        ent.name = word						    #
+        ent.variable.offset = compute_offset()	#
+        new_entity(ent)                         #
+
         token ,word = lex()
         while(token == 'comma_token'):
             c_file.write(word)
             token,word = lex()
             if(token == 'id_token' ):
                 c_file.write(word)
+
+                ent = Entity()							#Create an Entity
+                ent.type = 'VAR'						#
+                ent.name = word						    #
+                ent.variable.offset = compute_offset()	#
+                new_entity(ent)							#
+
                 token,word = lex()
             else:
                 print("SyntaxError :  'id' was expected in line : " , line)
@@ -405,10 +621,17 @@ def subprogram():
 
     if(token == 'id_token'):
         subprogram_name = word
+
+        ent = Entity()						#Create an Entity
+        ent.type = 'SUBPR'					#
+        ent.name = word					    #
+        ent.subprogram.type = 'Procedure'	#
+        new_entity(ent)						#
+
         token,word = lex()
         funcbody(subprogram_name,0)
     else:
-        print("SyntaxError :  'Wring function/procedure' name in line : " , line)
+        print("SyntaxError :  'Wrong function/procedure' name in line : " , line)
         exit(1)
 
 
@@ -464,6 +687,12 @@ def formalparitem():
     if(token == 'in_token' or token == 'inout_token'):
         token,word = lex()
         if(token == 'id_token'):
+
+            arg = Argument()		#Creation of a new argument. (Pinakas Symbolwn)
+            arg.name = token[0]		#
+            arg.parMode = 'CV'		#
+            new_argument(arg)		#
+
             token,word = lex()
         else:
             print("SyntaxError : parameters was expected in line : " , line)
