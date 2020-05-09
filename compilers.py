@@ -16,6 +16,7 @@ is_function = 0
 f = open(sys.argv[1],'r')
 c_file = open('new_c_file.c', 'w')
 int_file = open('new_int_file.int', 'w')
+
 keywords = {
     'program' : 'program_token',
     'declare' : 'declare_token',
@@ -156,6 +157,8 @@ def lex():
             elif (char.isalpha() or char.isdigit()):
                 f.seek(f.tell() - 1)
                 next = False
+            elif(char == ' '):
+                next = False
             else:
                 print("SyntaxError : Unknown character:' %c ' \nLine %d :  "%( char, line))
                 exit(1)
@@ -228,7 +231,7 @@ def lex():
 
 
 
-#---------- Useful funcions for intermediate code ----------#
+#------------ Useful funcions for intermediate code ------------#
 
 def next_quad():
     global count_quads
@@ -259,6 +262,12 @@ def new_temp():
     t_i += 1
     temp_variable = "".join(list)
     list_of_all_temp_var += [temp_variable]         # Save them in list  list_of_all_temp_var (is used in C-Code)
+
+    ent = Entity()								#Create an Entity
+    ent.type = 'TEMP'							#
+    ent.name = temp_variable					#
+    ent.tempVar.offset = compute_offset()		#
+    new_entity(ent)								#
 
     return temp_variable
 
@@ -295,13 +304,12 @@ def back_patch(list, label):
                 list_of_all_quads[j][4] = label
 
 
-# ----------------------------------------------------------------------------------
+#---------------------------------------------------------------------
 
 
 
 
 #---------- Usefull Classes and Functions for Symbols Table ----------#
-
 
 
 class Argument:
@@ -339,6 +347,7 @@ class Entity:
             self.startQuad = 0
             self.frameLength = 0
             self.argumentList = []
+            self.nestingLevel = 0       # gia ton teliko
 
 
     class Parameter:
@@ -448,8 +457,7 @@ def add_parameters():
 
 
 def print_Symbol_table():
-	'Prints Symbol-Table: Scopes, Entities, Arguments'
-	global topscope
+	global topScope
 
 	print("########################################################################################")
 	print("")
@@ -485,6 +493,320 @@ def print_Symbol_table():
 
 
 
+
+#------------------- Useful funcions for Final Code -------------------#
+
+ascFile = open('new_asc_file.asm','w')
+ascFile.write('         \n\n\n')
+
+
+def gnlvcode(name):  #DIAFANEIA 7
+
+	global topScope
+	global ascFile
+
+	ascFile.write('lw $t0,-4($sp)\n') #stoiva tou patera
+
+	(sc1,ent1)=search_comb(name)
+
+	#/*an einai pappous h' megaliteros progonos,kane to loop "my_help" fores*/
+	my_help= topScope.nestingLevel - sc1.nestingLevel;
+	my_help=my_help-1 #giati gia ton patera exoume paragei
+
+	for i in range(0,my_help):
+		ascFile.write('lw $t0,-4($t0)\n')
+
+
+	if ent1.type=='VAR':
+		x=ent1.variable.offset
+	elif ent1.type=='PARAM':
+		x=ent1.parameter.offset
+	#elif ent1.type=='TEMP':
+	#    x=ent1.tempVar.offset;
+
+	ascFile.write('add $t0,$t0,-%d\n' % (x))
+
+
+
+def loadvr(v,r): #DIAFANEIES 8 eos 11 (r akeraios, v string)
+
+		global topScope
+
+		global ascFile
+
+		if v.isdigit():  #DIAFANEIA 9 (panw) αν v είναι σταθερά
+			ascFile.write('li $t%d,%s\n' % (r,v))
+
+		else: # allios v einai metavliti
+			(sc1,ent1)=search_comb(v)
+
+			#DIAFANEIA 9 (katw)
+			#sc1.nestingLevel==0 simainei sximatika sto KATW epipedo (kirios programma)
+			if sc1.nestingLevel==0 and ent1.type=='VAR': #, αν v είναι καθολική μεταβλητή – δηλαδή ανήκει στο κυρίως πρόγραμμα
+					ascFile.write('lw $t%d,-%d($s0)\n' % (r,ent1.variable.offset))
+			elif sc1.nestingLevel==0 and ent1.type=='TEMP': #DIAFANEIA 9, αν v είναι καθολική μεταβλητή – δηλαδή ανήκει στο κυρίως πρόγραμμα
+					ascFile.write('lw $t%d,-%d($s0)\n' % (r,ent1.tempVar.offset))
+
+			#DIAFANEIA 10 (panw) αν v είναι τοπική μεταβλητή, ή τυπική παράμετρος που περνάει με τιμή και βάθος φωλιάσματος ίσο με το τρέχον, ή προσωρινή μεταβλητή
+			elif sc1.nestingLevel == topScope.nestingLevel: #βάθος φωλιάσματος ίσο με το τρέχον
+				if ent1.type=='VAR': #αν v είναι τοπική μεταβλητή
+						ascFile.write('lw $t%d,-%d($sp)\n' % (r,ent1.variable.offset))
+
+				elif ent1.type=='TEMP': # ή προσωρινή μεταβλητή
+						ascFile.write('lw $t%d,-%d($sp)\n' % (r,ent1.tempVar.offset))
+
+				elif ent1.type=='PARAM' and ent1.parameter.mode=='CV': #τυπική παράμετρος που περνάει με τιμή
+						ascFile.write('lw $t%d,-%d($sp)\n' % (r,ent1.parameter.offset))
+
+				#DIAFANEIA 10 (katw) αν v είναι τυπική παράμετρος που περνάει με αναφορά
+				elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':
+						ascFile.write('lw $t0,-%d($sp)\n' % (ent1.parameter.offset))
+						ascFile.write('lw $t%d,($t0)\n' % (r))
+
+			#DIAFANEIA 11 (panw) αν v είναι τοπική μεταβλητή, ή τυπική παράμετρος που περνάει με τιμή και βάθος φωλιάσματος μικρότερο από το τρέχον
+			elif sc1.nestingLevel < topScope.nestingLevel: # βάθος φωλιάσματος μικρότερο από το τρέχον
+				if ent1.type=='VAR':
+						gnlvcode(v)
+						ascFile.write('lw $t%d,($t0)\n' % (r))
+				elif ent1.type=='PARAM' and ent1.parameter.mode=='CV':
+						gnlvcode(v)
+						ascFile.write('lw $t%d,($t0)\n' % (r))
+
+				#DIAFANEIA 11 (katw) αν v είναι τυπική παράμετρος που περνάει με αναφορά
+				elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':
+						gnlvcode(v)
+						ascFile.write('lw $t0,($t0)\n')
+						ascFile.write('lw $t%d,($t0)\n' % (r))
+
+
+def storerv(r,v):  #DIAFANEIES 12 eos 15 (r akeraios, v string)
+
+	global topScope
+	global ascFile
+
+	(sc1,ent1)=search_comb(v)
+
+	#DIAFANEIA 13
+	#sc1.nestingLevel==0 simainei sximatika sto KATW epipedo (kirios programma)
+	if sc1.nestingLevel==0 and ent1.type=='VAR':
+		ascFile.write('sw $t%d,-%d($s0)\n' % (r,ent1.variable.offset))
+	elif sc1.nestingLevel==0 and ent1.type=='TEMP':
+		ascFile.write('sw $t%d,-%d($s0)\n' % (r,ent1.tempVar.offset))
+
+	#DIAFANEIA 14 (panw) αν v είναι τοπική μεταβλητή, ή τυπική παράμετρος που περνάει με τιμή και βάθος φωλιάσματος ίσο με το τρέχον, ή προσωρινή μεταβλητή
+	elif sc1.nestingLevel == topScope.nestingLevel:
+		if ent1.type=='VAR':
+			ascFile.write('sw $t%d,-%d($sp)\n' % (r,ent1.variable.offset))
+
+		elif ent1.type=='TEMP':
+			ascFile.write('sw $t%d,-%d($sp)\n' % (r,ent1.tempVar.offset))
+
+		elif ent1.type=='PARAM' and ent1.parameter.mode=='CV':
+			ascFile.write('sw $t%d,-%d($sp)\n' % (r,ent1.parameter.offset))
+
+		#DIAFANEIA 14 (katw) αν v είναι τυπική παράμετρος που περνάει με αναφορά
+		elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':
+			ascFile.write('lw $t0,-%d($sp)\n' %  (ent1.parameter.offset))
+			ascFile.write('sw $t%d,($t0)\n' % (r))
+
+	#DIAFANEIA 15 (panw) αν v είναι τοπική μεταβλητή, ή τυπική παράμετρος που περνάει με τιμή και βάθος φωλιάσματος μικρότερο από το τρέχον
+	elif sc1.nestingLevel < topScope.nestingLevel:
+		if ent1.type=='VAR':
+			gnlvcode(v)
+			ascFile.write('sw $t%d,($t0)\n' % (r))
+		elif ent1.type=='PARAM' and ent1.parameter.mode=='CV':
+			gnlvcode(v)
+			ascFile.write('sw $t%d,($t0)\n' % (r))
+
+		#DIAFANEIA 15 (katw) αν v είναι τυπική παράμετρος που περνάει με αναφορά
+		elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':
+			gnlvcode(v)
+			ascFile.write('lw $t0,($t0)\n')
+			ascFile.write('sw $t%d,($t0)\n' % (r))
+
+
+
+
+def search_list_after(i):
+
+	global list_of_all_quads
+
+	start=i
+	while start>=i:
+
+		if (list_of_all_quads[start][1] == 'call'):  # molis vro to "call"
+			return str(list_of_all_quads[start][2])  #epistrefo to onoma tis sinartisis/diadikasias
+
+		start=start+1
+
+seira=-1
+
+def final():  # tin kalw PANTA META to "end_block" kai prin to "delete_scope"  (mesa stin block)
+
+	global topScope
+	global list_of_all_quads, seira
+	global ascFile
+
+	for i in range(len(list_of_all_quads)): # diasxise tis tetrades mexri stigmis
+
+		ascFile.write('L%d: \n' % (list_of_all_quads[i][0])) # Lkati: (label)
+
+		if (list_of_all_quads[i][1] == 'jump'): #DIAFANEIA 16 (panw)
+			ascFile.write('j L'+str(list_of_all_quads[i][4])+'\n')
+		elif (list_of_all_quads[i][1] == '='): #DIAFANEIA 16 (katw)
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('beq,$t1,$t2,L'+str(list_of_all_quads[i][4])+'\n')
+		elif (list_of_all_quads[i][1] == '<>'): #DIAFANEIA 16 (katw)
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('bne,$t1,$t2,L'+str(list_of_all_quads[i][4])+'\n')
+		elif (list_of_all_quads[i][1] == '>'): #DIAFANEIA 16 (katw)
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('bgt,$t1,$t2,L'+str(list_of_all_quads[i][4])+'\n')
+		elif (list_of_all_quads[i][1] == '<'): #DIAFANEIA 16 (katw)
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('blt,$t1,$t2,L'+str(list_of_all_quads[i][4])+'\n')
+		elif (list_of_all_quads[i][1] == '>='):	 #DIAFANEIA 16 (katw)
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('bge,$t1,$t2,L'+str(list_of_all_quads[i][4])+'\n')
+		elif (list_of_all_quads[i][1] == '<='): #DIAFANEIA 16 (katw)
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('ble,$t1,$t2,L'+str(list_of_all_quads[i][4])+'\n')
+		elif (list_of_all_quads[i][1] == ':='): #DIAFANEIA 17
+			loadvr(list_of_all_quads[i][2],1)
+			storerv(1,list_of_all_quads[i][4])
+		elif (list_of_all_quads[i][1] == '+'): #DIAFANEIA 18
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('add,$t1,$t1,$t2'+'\n')
+			storerv(1,list_of_all_quads[i][4])
+		elif (list_of_all_quads[i][1] == '-'): #DIAFANEIA 18
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('sub,$t1,$t1,$t2'+'\n')
+			storerv(1,list_of_all_quads[i][4])
+		elif (list_of_all_quads[i][1] == '*'): #DIAFANEIA 18
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('mul,$t1,$t1,$t2'+'\n')
+			storerv(1,list_of_all_quads[i][4])
+		elif (list_of_all_quads[i][1] == '/'): #DIAFANEIA 18
+			loadvr(list_of_all_quads[i][2],1)
+			loadvr(list_of_all_quads[i][3],2)
+			ascFile.write('div,$t1,$t1,$t2'+'\n')
+			storerv(1,list_of_all_quads[i][4])
+		elif (list_of_all_quads[i][1] == 'out'): #DIAFANEIA 19 (panw)
+			ascFile.write('li $v0,1'+'\n')
+			loadvr(list_of_all_quads[i][2],1)   # den to exei (gia na parw to "x")
+			ascFile.write('move $a0,$t1'+'\n') # den to exei
+			ascFile.write('syscall'+'\n')
+		elif (list_of_all_quads[i][1] == 'inp'): #DIAFANEIA 19 (katw)
+			ascFile.write('li $v0,5'+'\n')
+			ascFile.write('syscall'+'\n')
+			ascFile.write('move $t1,$v0'+'\n') # den to exei
+			storerv(1,list_of_all_quads[i][2])    # den to exei
+		elif (list_of_all_quads[i][1] == 'retv'):  #DIAFANEIA 20 (panw)
+			loadvr(list_of_all_quads[i][2],1)
+			ascFile.write('lw $t0,-8($sp)\n')
+			ascFile.write('sw $t1,($t0)\n')
+		elif (list_of_all_quads[i][1] == 'par'):  #DIAFANEIA 21 eos 27
+			if seira==-1:  #DIAFANEIA 21 (PRIN to proto par)
+				# prepei na PSAKSO apo tin tetrada "i" pros ta katw to "call", giati ekei vrisketai to onoma
+				# tis sinartisis/diadikasias (fname) pou thelo, oste telika na vro to FRAMELENGTH
+				fname=search_list_after(i)
+				(sc1,ent1)=search_comb(fname)
+				ascFile.write('add $fp,$sp,%d\n' % (ent1.subprogram.frameLength))   #FRAMELENGTH
+				seira=0   #  arxikopoiisi tou "i"
+
+			if (list_of_all_quads[i][3] == 'CV'):  #DIAFANEIA 22
+				loadvr(list_of_all_quads[i][2],0)
+				ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
+				seira=seira+1  # stis diafaneies to exei "i"
+			elif (list_of_all_quads[i][3] == 'RET'):
+				(sc1,ent1)=search_comb(list_of_all_quads[i][2])   #DIAFANEIA 27
+				ascFile.write('add $t0,$sp,-%d\n' % (ent1.tempVar.offset))
+				ascFile.write('sw $t0,-8($fp)\n')
+			elif (list_of_all_quads[i][3] == 'REF'):  #DIAFANEIA 23 eos 26
+				(sc1,ent1)=search_comb(list_of_all_quads[i][2])
+
+				if sc1.nestingLevel==topScope.nestingLevel:  #DIAFANEIA 23 kai 24 (ίδιο βάθος φωλιάσματος)
+					if ent1.type=='VAR':  #DIAFANEIA 23
+						ascFile.write('add $t0,$sp,-%d\n' % (ent1.variable.offset))
+						ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
+					elif ent1.type=='PARAM' and ent1.parameter.mode=='CV':  #DIAFANEIA 23
+						ascFile.write('add $t0,$sp,-%d\n' % (ent1.parameter.offset))
+						ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
+					elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':  #DIAFANEIA 24
+						ascFile.write('lw $t0,-%d($sp)\n' % (ent1.parameter.offset))
+						ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
+
+				elif sc1.nestingLevel<topScope.nestingLevel:  #DIAFANEIA 25 kai 26 (διαφορετικο βάθος φωλιάσματος)
+					gnlvcode(list_of_all_quads[i][2])
+					if ent1.type=='PARAM' and ent1.parameter.mode=='REF':  #DIAFANEIA 26
+					    ascFile.write('lw $t0,($t0)\n')
+					    ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
+					else: #DIAFANEIA 25
+					    ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
+				seira=seira+1
+		elif (list_of_all_quads[i][1] == 'call'): #DIAFANEIA 28 kai 29
+			seira=-1 # reset
+
+			(sc1,ent1)=search_comb(list_of_all_quads[i][2])
+            #print("to topScope level einai:",topScope.nestingLevel)
+            #print("to ent1 level einai:",ent1.nestingLevel)
+			if topScope.nestingLevel == ent1.subprogram.nestingLevel:  #DIAFANEIA 28 (1i periptosi)
+				ascFile.write('lw $t0,    einai edw  -4($sp)\n')
+				ascFile.write('sw $t0,-4($fp)\n')
+			elif topScope.nestingLevel < ent1.subprogram.nestingLevel:  #DIAFANEIA 28 (2i periptosi)
+				ascFile.write('sw $sp,-4($fp)\n')
+
+			ascFile.write('add $sp,$sp,%d\n' % (ent1.subprogram.frameLength)) #DIAFANEIA 29
+			ascFile.write('jal L%d\n' % (ent1.subprogram.startQuad))          #DIAFANEIA 29
+			ascFile.write('add $sp,$sp,-%d\n' % (ent1.subprogram.frameLength)) #DIAFANEIA 29
+
+		elif ( list_of_all_quads[i][1] == 'begin_block' and topScope.nestingLevel!=0):  #DIAFANEIA 30 (panw) [OXI sto program, dld mono se function/procedure]
+			ascFile.write('sw $ra,($sp)\n')
+		elif ( list_of_all_quads[i][1] == 'begin_block' and topScope.nestingLevel==0):  #DIAFANEIA 31 [TWRA sto program]
+			ascFile.seek(0, os.SEEK_SET)
+			ascFile.write('j L%d\n'% (list_of_all_quads[i][0]))  #  DIAFANEIA 31 j Lmain , prepei na grafei stin arxi tou arxeiou
+			ascFile.seek(0, os.SEEK_END)
+
+			ascFile.write('add $sp,$sp,%d\n' % (compute_offset()))   #DIAFANEIA 31
+			ascFile.write('move $s0,$sp\n')                            #DIAFANEIA 31
+		elif ( list_of_all_quads[i][1] == 'end_block' and topScope.nestingLevel!=0):  #DIAFANEIA 30 (katw) [OXI sto program, dld mono se function/procedure]
+			ascFile.write('lw $ra,($sp)\n')
+			ascFile.write('jr $ra\n')
+
+
+
+
+	# reset, giati otan kalw ti final PREPEI na exoun diagrafei oi proigoumenes tetrades METAKSI begin_block kai end_block
+	list_of_all_quads = []
+
+def search_comb(n):
+	global topScope
+
+	sco=topScope
+	while sco != None:
+		for ent in sco.entityList:
+			if(ent.name == n):
+				return (sco,ent)
+		sco=sco.enclosingScope
+
+	print("Den brethike ston pinaka simbolon kombos me onoma " + str(n))
+	exit()
+
+
+
+# ----------------------------------------------------------------------------------
+
+
+
 #---------- Syntax Analyzer ----------#
 def program():
     global token,word,line
@@ -515,6 +837,8 @@ def program():
 
 
 def block(program_name, is_main_program):
+    global token,word,line
+
     new_scope(program_name)
     if(is_main_program != 1):
         add_parameters()
@@ -522,9 +846,12 @@ def block(program_name, is_main_program):
     declarations()
     subprograms()
     gen_quad('begin_block', program_name, '_', '_')
+
     if(is_main_program != 1):
         compute_startQuad()
+
     statements()
+
     if(is_main_program == 1):
         gen_quad('halt', '_', '_', '_')
     else:
@@ -534,7 +861,7 @@ def block(program_name, is_main_program):
 
     print("Print Symbol-Table:")
     print_Symbol_table()
-
+    final()
     delete_scope()
     print("Last scope deleted.")
 
@@ -560,8 +887,12 @@ def subprograms():
     global token,word,line
 
     while(token == 'function_token' or token == 'procedure_token'):
-        token,word = lex()
-        subprogram()
+        if(token == 'function_token'):
+            token,word = lex()
+            subprogram(0)
+        else:
+            token,word = lex()
+            subprogram(1)
 
 
 
@@ -616,16 +947,29 @@ def varlist():
 
 
 
-def subprogram():
+def subprogram(is_procedure):
     global token,word,line
 
-    if(token == 'id_token'):
+    if(token == 'id_token' and is_procedure == 1):
         subprogram_name = word
 
         ent = Entity()						#Create an Entity
         ent.type = 'SUBPR'					#
         ent.name = word					    #
         ent.subprogram.type = 'Procedure'	#
+        ent.subprogram.nestingLevel = topScope.nestingLevel + 1 # gia TELIKO
+        new_entity(ent)						#
+
+        token,word = lex()
+        funcbody(subprogram_name,0)
+    elif(token == 'id_token' and is_procedure == 0):
+        subprogram_name = word
+
+        ent = Entity()						#Create an Entity
+        ent.type = 'SUBPR'					#
+        ent.name = word					    #
+        ent.subprogram.type = 'Function'	#
+        ent.subprogram.nestingLevel = topScope.nestingLevel + 1 # gia TELIKO
         new_entity(ent)						#
 
         token,word = lex()
@@ -684,13 +1028,26 @@ def formalparlist():
 def formalparitem():
     global token,word,line
 
-    if(token == 'in_token' or token == 'inout_token'):
+    if(token == 'in_token' ):
         token,word = lex()
         if(token == 'id_token'):
 
             arg = Argument()		#Creation of a new argument. (Pinakas Symbolwn)
-            arg.name = token[0]		#
+            arg.name = word		    #
             arg.parMode = 'CV'		#
+            new_argument(arg)		#
+
+            token,word = lex()
+        else:
+            print("SyntaxError : parameters was expected in line : " , line)
+            exit(1)
+    elif(token == 'inout_token'):
+        token,word = lex()
+        if(token == 'id_token'):
+
+            arg = Argument()		#Creation of a new argument. (Pinakas Symbolwn)
+            arg.name = word		    #
+            arg.parMode = 'REF'		#
             new_argument(arg)		#
 
             token,word = lex()
@@ -1365,6 +1722,6 @@ create_int_file()
 c_file.write("\n}")
 c_file.close()
 int_file.close()
-
+ascFile.close()
 #for i in range(len(list_of_all_quads)):
 #	print (str(list_of_all_quads[i][0])+" "+str(list_of_all_quads[i][1])+" "+str(list_of_all_quads[i][2])+" "+str(list_of_all_quads[i][3])+" "+str(list_of_all_quads[i][4]))
