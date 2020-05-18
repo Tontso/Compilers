@@ -263,11 +263,11 @@ def new_temp():
     temp_variable = "".join(list)
     list_of_all_temp_var += [temp_variable]         # Save them in list  list_of_all_temp_var (is used in C-Code)
 
-    ent = Entity()								#Create an Entity
-    ent.type = 'TEMP'							#
-    ent.name = temp_variable					#
-    ent.tempVar.offset = compute_offset()		#
-    new_entity(ent)								#
+    entity = Entity()
+    entity.type = 'temp_variable'
+    entity.name = temp_variable
+    entity.tempVar.offset = compute_offset()
+    new_entity(entity)
 
     return temp_variable
 
@@ -316,7 +316,7 @@ class Argument:
 
 	def __init__(self):
 		self.name = ''		#Dinw to name gia na kserw poio Argument einai.
-		self.type = 'Int'	#All variables in this language will be Int.
+		self.type = 'int'	#All variables in this language will be Int.
 		self.parMode = ''	# 'CV', 'REF'
 
 
@@ -336,7 +336,7 @@ class Entity:
     class Variable:
 
         def __init__(self):
-            self.type = 'Int'
+            self.type = 'int'
             self.offset = 0
 
 
@@ -347,7 +347,7 @@ class Entity:
             self.startQuad = 0
             self.frameLength = 0
             self.argumentList = []
-            self.nestingLevel = 0       # gia ton teliko
+            self.nestingLevel = 0
 
 
     class Parameter:
@@ -360,7 +360,7 @@ class Entity:
     class TempVar:
 
         def __init__(self):
-            self.type = 'Int'
+            self.type = 'int'
             self.offset = 0
 
 
@@ -374,10 +374,12 @@ class Scope:
         self.enclosingScope = None
 
 
+
 def new_argument(object):
     global topScope
 
     topScope.entityList[-1].subprogram.argumentList.append(object)
+
 
 
 def new_entity(object):
@@ -385,8 +387,8 @@ def new_entity(object):
 
     topScope.entityList.append(object)
 
-
 topScope = None
+
 
 
 def new_scope(name):
@@ -419,8 +421,8 @@ def compute_offset():
 
     counter = 0
     if(topScope.entityList is not []):
-        for ent in (topScope.entityList):
-            if(ent.type == 'VAR' or ent.type == 'TEMP' or ent.type == 'PARAM'):
+        for entity in (topScope.entityList):
+            if(entity.type == 'variable' or entity.type == 'parameter' or entity.type == 'temp_variable'):
                 counter += 1
 
     offset = 12 + (counter * 4)
@@ -447,47 +449,45 @@ def add_parameters():
     global topScope
 
     for arg in topScope.enclosingScope.entityList[-1].subprogram.argumentList:
-        ent = Entity()
-        ent.name = arg.name
-        ent.type = 'PARAM'
-        ent.parameter.mode = arg.parMode
-        ent.parameter.offset = compute_offset()
-        new_entity(ent)
+        entity = Entity()
+        entity.name = arg.name
+        entity.type = 'parameter'
+        entity.parameter.mode = arg.parMode
+        entity.parameter.offset = compute_offset()
+        new_entity(entity)
 
 
 
-def print_Symbol_table():
-	global topScope
+def print_symbol_table():
+    global topScope
 
-	print("########################################################################################")
-	print("")
+    scope = topScope
 
-	sco = topScope
-	while sco != None:
-		print("SCOPE: "+"name:"+sco.name+" nestingLevel:"+str(sco.nestingLevel))
-		#print(len(sco.enclosingScope))
-		print("\tENTITIES:")
-		for ent in sco.entityList:
-			if(ent.type == 'VAR'):
-				print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t variable-type:"+ent.variable.type+"\t offset:"+str(ent.variable.offset))
-			elif(ent.type == 'TEMP'):
-				print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t temp-type:"+ent.tempVar.type+"\t offset:"+str(ent.tempVar.offset))
-			elif(ent.type == 'SUBPR'):
-				if(ent.subprogram.type == 'Function'):
-					print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t function-type:"+ent.subprogram.type+"\t startQuad:"+str(ent.subprogram.startQuad)+"\t frameLength:"+str(ent.subprogram.frameLength))
-					print("\t\tARGUMENTS:")
-					for arg in ent.subprogram.argumentList:
-						print("\t\tARGUMENT: "+" name:"+arg.name+"\t type:"+arg.type+"\t parMode:"+arg.parMode)
-				elif(ent.subprogram.type == 'Procedure'):
-					print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t procedure-type:"+ent.subprogram.type+"\t startQuad:"+str(ent.subprogram.startQuad)+"\t frameLength:"+str(ent.subprogram.frameLength))
-					print("\t\tARGUMENTS:")
-					for arg in ent.subprogram.argumentList:
-						print("\t\tARGUMENT: "+" name:"+arg.name+"\t type:"+arg.type+"\t parMode:"+arg.parMode)
-			elif(ent.type == 'PARAM'):
-				print("\tENTITY: "+" name:"+ent.name+"\t type:"+ent.type+"\t mode:"+ent.parameter.mode+"\t offset:"+str(ent.parameter.offset))
-		sco = sco.enclosingScope
+    while scope != None:
+        print("Nesting-Level:"+str(scope.nestingLevel) +"\t\t"+ "SCOPE: "+"Name: "+scope.name)
+        print("\t\t\tENTITIES:")
+        for entity in scope.entityList:
 
-	print("########################################################################################")
+            if(entity.type == 'Sub_Program'):
+                print("\t\t\t\t |--> "+" Name:"+entity.name+"\t Type:"+entity.type+"\t Sub_Type:" +entity.subprogram.type+"\t Start-Quad:"+str(entity.subprogram.startQuad)+"\t frameLength:"+str(entity.subprogram.frameLength))
+                print("\t\t\t\t\tARGUMENTS:")
+                for argument in entity.subprogram.argumentList:
+                    print("\t\t\t\t\t |--> "+" Name:"+argument.name+"\t Type:"+argument.type+"\t Parameter-Mode:"+argument.parMode)
+
+            elif(entity.type == 'variable'):
+                print("\t\t\t\t |--> "+" Name:"+entity.name+"\t Type:"+entity.type+"\t Variable-Type:"+entity.variable.type+"\t Offset:"+str(entity.variable.offset))
+
+            elif(entity.type == 'parameter'):
+                print("\t\t\t\t |--> "+" Name:"+entity.name+"\t Type:"+entity.type+"\t Mode:"+entity.parameter.mode+"\t Offset:"+str(entity.parameter.offset))
+
+            elif(entity.type == 'temp_variable'):
+                print("\t\t\t\t |--> "+" Name:"+entity.name+"\t Type:"+entity.type+"\t Temp-Type:"+entity.tempVar.type+"\t Offset:"+str(entity.tempVar.offset))
+
+        scope = scope.enclosingScope
+
+    print("------------------------------------------------------------------------------------------")
+
+
 
 # ----------------------------------------------------------------------------------
 
@@ -496,7 +496,7 @@ def print_Symbol_table():
 
 #------------------- Useful funcions for Final Code -------------------#
 
-ascFile = open('new_asc_file.asm','w')
+ascFile = open('new_asm_file.asm','w')
 ascFile.write('         \n\n\n')
 
 
@@ -507,7 +507,7 @@ def gnlvcode(name):  #DIAFANEIA 7
 
 	ascFile.write('lw $t0,-4($sp)\n') #stoiva tou patera
 
-	(sc1,ent1)=search_comb(name)
+	(sc1,entity1)=search_comb(name)
 
 	#/*an einai pappous h' megaliteros progonos,kane to loop "my_help" fores*/
 	my_help= topScope.nestingLevel - sc1.nestingLevel;
@@ -517,12 +517,10 @@ def gnlvcode(name):  #DIAFANEIA 7
 		ascFile.write('lw $t0,-4($t0)\n')
 
 
-	if ent1.type=='VAR':
-		x=ent1.variable.offset
-	elif ent1.type=='PARAM':
-		x=ent1.parameter.offset
-	#elif ent1.type=='TEMP':
-	#    x=ent1.tempVar.offset;
+	if entity1.type=='variable':
+		x=entity1.variable.offset
+	elif entity1.type=='PARAM':
+		x=entity1.parameter.offset
 
 	ascFile.write('add $t0,$t0,-%d\n' % (x))
 
@@ -538,42 +536,42 @@ def loadvr(v,r): #DIAFANEIES 8 eos 11 (r akeraios, v string)
 			ascFile.write('li $t%d,%s\n' % (r,v))
 
 		else: # allios v einai metavliti
-			(sc1,ent1)=search_comb(v)
+			(sc1,entity1)=search_comb(v)
 
 			#DIAFANEIA 9 (katw)
 			#sc1.nestingLevel==0 simainei sximatika sto KATW epipedo (kirios programma)
-			if sc1.nestingLevel==0 and ent1.type=='VAR': #, αν v είναι καθολική μεταβλητή – δηλαδή ανήκει στο κυρίως πρόγραμμα
-					ascFile.write('lw $t%d,-%d($s0)\n' % (r,ent1.variable.offset))
-			elif sc1.nestingLevel==0 and ent1.type=='TEMP': #DIAFANEIA 9, αν v είναι καθολική μεταβλητή – δηλαδή ανήκει στο κυρίως πρόγραμμα
-					ascFile.write('lw $t%d,-%d($s0)\n' % (r,ent1.tempVar.offset))
+			if sc1.nestingLevel==0 and entity1.type=='variable': #, αν v είναι καθολική μεταβλητή – δηλαδή ανήκει στο κυρίως πρόγραμμα
+					ascFile.write('lw $t%d,-%d($s0)\n' % (r,entity1.variable.offset))
+			elif sc1.nestingLevel==0 and entity1.type=='temp_variable': #DIAFANEIA 9, αν v είναι καθολική μεταβλητή – δηλαδή ανήκει στο κυρίως πρόγραμμα
+					ascFile.write('lw $t%d,-%d($s0)\n' % (r,entity1.tempVar.offset))
 
 			#DIAFANEIA 10 (panw) αν v είναι τοπική μεταβλητή, ή τυπική παράμετρος που περνάει με τιμή και βάθος φωλιάσματος ίσο με το τρέχον, ή προσωρινή μεταβλητή
 			elif sc1.nestingLevel == topScope.nestingLevel: #βάθος φωλιάσματος ίσο με το τρέχον
-				if ent1.type=='VAR': #αν v είναι τοπική μεταβλητή
-						ascFile.write('lw $t%d,-%d($sp)\n' % (r,ent1.variable.offset))
+				if entity1.type=='variable': #αν v είναι τοπική μεταβλητή
+						ascFile.write('lw $t%d,-%d($sp)\n' % (r,entity1.variable.offset))
 
-				elif ent1.type=='TEMP': # ή προσωρινή μεταβλητή
-						ascFile.write('lw $t%d,-%d($sp)\n' % (r,ent1.tempVar.offset))
+				elif entity1.type=='temp_variable': # ή προσωρινή μεταβλητή
+						ascFile.write('lw $t%d,-%d($sp)\n' % (r,entity1.tempVar.offset))
 
-				elif ent1.type=='PARAM' and ent1.parameter.mode=='CV': #τυπική παράμετρος που περνάει με τιμή
-						ascFile.write('lw $t%d,-%d($sp)\n' % (r,ent1.parameter.offset))
+				elif entity1.type=='PARAM' and entity1.parameter.mode=='CV': #τυπική παράμετρος που περνάει με τιμή
+						ascFile.write('lw $t%d,-%d($sp)\n' % (r,entity1.parameter.offset))
 
 				#DIAFANEIA 10 (katw) αν v είναι τυπική παράμετρος που περνάει με αναφορά
-				elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':
-						ascFile.write('lw $t0,-%d($sp)\n' % (ent1.parameter.offset))
+				elif entity1.type=='PARAM' and entity1.parameter.mode=='REF':
+						ascFile.write('lw $t0,-%d($sp)\n' % (entity1.parameter.offset))
 						ascFile.write('lw $t%d,($t0)\n' % (r))
 
 			#DIAFANEIA 11 (panw) αν v είναι τοπική μεταβλητή, ή τυπική παράμετρος που περνάει με τιμή και βάθος φωλιάσματος μικρότερο από το τρέχον
 			elif sc1.nestingLevel < topScope.nestingLevel: # βάθος φωλιάσματος μικρότερο από το τρέχον
-				if ent1.type=='VAR':
+				if entity1.type=='variable':
 						gnlvcode(v)
 						ascFile.write('lw $t%d,($t0)\n' % (r))
-				elif ent1.type=='PARAM' and ent1.parameter.mode=='CV':
+				elif entity1.type=='PARAM' and entity1.parameter.mode=='CV':
 						gnlvcode(v)
 						ascFile.write('lw $t%d,($t0)\n' % (r))
 
 				#DIAFANEIA 11 (katw) αν v είναι τυπική παράμετρος που περνάει με αναφορά
-				elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':
+				elif entity1.type=='PARAM' and entity1.parameter.mode=='REF':
 						gnlvcode(v)
 						ascFile.write('lw $t0,($t0)\n')
 						ascFile.write('lw $t%d,($t0)\n' % (r))
@@ -584,42 +582,42 @@ def storerv(r,v):  #DIAFANEIES 12 eos 15 (r akeraios, v string)
 	global topScope
 	global ascFile
 
-	(sc1,ent1)=search_comb(v)
+	(sc1,entity1)=search_comb(v)
 
 	#DIAFANEIA 13
 	#sc1.nestingLevel==0 simainei sximatika sto KATW epipedo (kirios programma)
-	if sc1.nestingLevel==0 and ent1.type=='VAR':
-		ascFile.write('sw $t%d,-%d($s0)\n' % (r,ent1.variable.offset))
-	elif sc1.nestingLevel==0 and ent1.type=='TEMP':
-		ascFile.write('sw $t%d,-%d($s0)\n' % (r,ent1.tempVar.offset))
+	if sc1.nestingLevel==0 and entity1.type=='variable':
+		ascFile.write('sw $t%d,-%d($s0)\n' % (r,entity1.variable.offset))
+	elif sc1.nestingLevel==0 and entity1.type=='temp_variable':
+		ascFile.write('sw $t%d,-%d($s0)\n' % (r,entity1.tempVar.offset))
 
 	#DIAFANEIA 14 (panw) αν v είναι τοπική μεταβλητή, ή τυπική παράμετρος που περνάει με τιμή και βάθος φωλιάσματος ίσο με το τρέχον, ή προσωρινή μεταβλητή
 	elif sc1.nestingLevel == topScope.nestingLevel:
-		if ent1.type=='VAR':
-			ascFile.write('sw $t%d,-%d($sp)\n' % (r,ent1.variable.offset))
+		if entity1.type=='variable':
+			ascFile.write('sw $t%d,-%d($sp)\n' % (r,entity1.variable.offset))
 
-		elif ent1.type=='TEMP':
-			ascFile.write('sw $t%d,-%d($sp)\n' % (r,ent1.tempVar.offset))
+		elif entity1.type=='temp_variable':
+			ascFile.write('sw $t%d,-%d($sp)\n' % (r,entity1.tempVar.offset))
 
-		elif ent1.type=='PARAM' and ent1.parameter.mode=='CV':
-			ascFile.write('sw $t%d,-%d($sp)\n' % (r,ent1.parameter.offset))
+		elif entity1.type=='PARAM' and entity1.parameter.mode=='CV':
+			ascFile.write('sw $t%d,-%d($sp)\n' % (r,entity1.parameter.offset))
 
 		#DIAFANEIA 14 (katw) αν v είναι τυπική παράμετρος που περνάει με αναφορά
-		elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':
-			ascFile.write('lw $t0,-%d($sp)\n' %  (ent1.parameter.offset))
+		elif entity1.type=='PARAM' and entity1.parameter.mode=='REF':
+			ascFile.write('lw $t0,-%d($sp)\n' %  (entity1.parameter.offset))
 			ascFile.write('sw $t%d,($t0)\n' % (r))
 
 	#DIAFANEIA 15 (panw) αν v είναι τοπική μεταβλητή, ή τυπική παράμετρος που περνάει με τιμή και βάθος φωλιάσματος μικρότερο από το τρέχον
 	elif sc1.nestingLevel < topScope.nestingLevel:
-		if ent1.type=='VAR':
+		if entity1.type=='variable':
 			gnlvcode(v)
 			ascFile.write('sw $t%d,($t0)\n' % (r))
-		elif ent1.type=='PARAM' and ent1.parameter.mode=='CV':
+		elif entity1.type=='PARAM' and entity1.parameter.mode=='CV':
 			gnlvcode(v)
 			ascFile.write('sw $t%d,($t0)\n' % (r))
 
 		#DIAFANEIA 15 (katw) αν v είναι τυπική παράμετρος που περνάει με αναφορά
-		elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':
+		elif entity1.type=='PARAM' and entity1.parameter.mode=='REF':
 			gnlvcode(v)
 			ascFile.write('lw $t0,($t0)\n')
 			ascFile.write('sw $t%d,($t0)\n' % (r))
@@ -719,8 +717,8 @@ def final():  # tin kalw PANTA META to "end_block" kai prin to "delete_scope"  (
 				# prepei na PSAKSO apo tin tetrada "i" pros ta katw to "call", giati ekei vrisketai to onoma
 				# tis sinartisis/diadikasias (fname) pou thelo, oste telika na vro to FRAMELENGTH
 				fname=search_list_after(i)
-				(sc1,ent1)=search_comb(fname)
-				ascFile.write('add $fp,$sp,%d\n' % (ent1.subprogram.frameLength))   #FRAMELENGTH
+				(sc1,entity1)=search_comb(fname)
+				ascFile.write('add $fp,$sp,%d\n' % (entity1.subprogram.frameLength))   #FRAMELENGTH
 				seira=0   #  arxikopoiisi tou "i"
 
 			if (list_of_all_quads[i][3] == 'CV'):  #DIAFANEIA 22
@@ -728,26 +726,26 @@ def final():  # tin kalw PANTA META to "end_block" kai prin to "delete_scope"  (
 				ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
 				seira=seira+1  # stis diafaneies to exei "i"
 			elif (list_of_all_quads[i][3] == 'RET'):
-				(sc1,ent1)=search_comb(list_of_all_quads[i][2])   #DIAFANEIA 27
-				ascFile.write('add $t0,$sp,-%d\n' % (ent1.tempVar.offset))
+				(sc1,entity1)=search_comb(list_of_all_quads[i][2])   #DIAFANEIA 27
+				ascFile.write('add $t0,$sp,-%d\n' % (entity1.tempVar.offset))
 				ascFile.write('sw $t0,-8($fp)\n')
 			elif (list_of_all_quads[i][3] == 'REF'):  #DIAFANEIA 23 eos 26
-				(sc1,ent1)=search_comb(list_of_all_quads[i][2])
+				(sc1,entity1)=search_comb(list_of_all_quads[i][2])
 
 				if sc1.nestingLevel==topScope.nestingLevel:  #DIAFANEIA 23 kai 24 (ίδιο βάθος φωλιάσματος)
-					if ent1.type=='VAR':  #DIAFANEIA 23
-						ascFile.write('add $t0,$sp,-%d\n' % (ent1.variable.offset))
+					if entity1.type=='variable':  #DIAFANEIA 23
+						ascFile.write('add $t0,$sp,-%d\n' % (entity1.variable.offset))
 						ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
-					elif ent1.type=='PARAM' and ent1.parameter.mode=='CV':  #DIAFANEIA 23
-						ascFile.write('add $t0,$sp,-%d\n' % (ent1.parameter.offset))
+					elif entity1.type=='PARAM' and entity1.parameter.mode=='CV':  #DIAFANEIA 23
+						ascFile.write('add $t0,$sp,-%d\n' % (entity1.parameter.offset))
 						ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
-					elif ent1.type=='PARAM' and ent1.parameter.mode=='REF':  #DIAFANEIA 24
-						ascFile.write('lw $t0,-%d($sp)\n' % (ent1.parameter.offset))
+					elif entity1.type=='PARAM' and entity1.parameter.mode=='REF':  #DIAFANEIA 24
+						ascFile.write('lw $t0,-%d($sp)\n' % (entity1.parameter.offset))
 						ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
 
 				elif sc1.nestingLevel<topScope.nestingLevel:  #DIAFANEIA 25 kai 26 (διαφορετικο βάθος φωλιάσματος)
 					gnlvcode(list_of_all_quads[i][2])
-					if ent1.type=='PARAM' and ent1.parameter.mode=='REF':  #DIAFANEIA 26
+					if entity1.type=='PARAM' and entity1.parameter.mode=='REF':  #DIAFANEIA 26
 					    ascFile.write('lw $t0,($t0)\n')
 					    ascFile.write('sw $t0,-%d($fp)\n' % (12+4*seira))
 					else: #DIAFANEIA 25
@@ -756,18 +754,18 @@ def final():  # tin kalw PANTA META to "end_block" kai prin to "delete_scope"  (
 		elif (list_of_all_quads[i][1] == 'call'): #DIAFANEIA 28 kai 29
 			seira=-1 # reset
 
-			(sc1,ent1)=search_comb(list_of_all_quads[i][2])
+			(sc1,entity1)=search_comb(list_of_all_quads[i][2])
             #print("to topScope level einai:",topScope.nestingLevel)
-            #print("to ent1 level einai:",ent1.nestingLevel)
-			if topScope.nestingLevel == ent1.subprogram.nestingLevel:  #DIAFANEIA 28 (1i periptosi)
+            #print("to entity1 level einai:",entity1.nestingLevel)
+			if topScope.nestingLevel == entity1.subprogram.nestingLevel:  #DIAFANEIA 28 (1i periptosi)
 				ascFile.write('lw $t0,    einai edw  -4($sp)\n')
 				ascFile.write('sw $t0,-4($fp)\n')
-			elif topScope.nestingLevel < ent1.subprogram.nestingLevel:  #DIAFANEIA 28 (2i periptosi)
+			elif topScope.nestingLevel < entity1.subprogram.nestingLevel:  #DIAFANEIA 28 (2i periptosi)
 				ascFile.write('sw $sp,-4($fp)\n')
 
-			ascFile.write('add $sp,$sp,%d\n' % (ent1.subprogram.frameLength)) #DIAFANEIA 29
-			ascFile.write('jal L%d\n' % (ent1.subprogram.startQuad))          #DIAFANEIA 29
-			ascFile.write('add $sp,$sp,-%d\n' % (ent1.subprogram.frameLength)) #DIAFANEIA 29
+			ascFile.write('add $sp,$sp,%d\n' % (entity1.subprogram.frameLength)) #DIAFANEIA 29
+			ascFile.write('jal L%d\n' % (entity1.subprogram.startQuad))          #DIAFANEIA 29
+			ascFile.write('add $sp,$sp,-%d\n' % (entity1.subprogram.frameLength)) #DIAFANEIA 29
 
 		elif ( list_of_all_quads[i][1] == 'begin_block' and topScope.nestingLevel!=0):  #DIAFANEIA 30 (panw) [OXI sto program, dld mono se function/procedure]
 			ascFile.write('sw $ra,($sp)\n')
@@ -793,9 +791,9 @@ def search_comb(n):
 
 	sco=topScope
 	while sco != None:
-		for ent in sco.entityList:
-			if(ent.name == n):
-				return (sco,ent)
+		for entity in sco.entityList:
+			if(entity.name == n):
+				return (sco,entity)
 		sco=sco.enclosingScope
 
 	print("Den brethike ston pinaka simbolon kombos me onoma " + str(n))
@@ -859,11 +857,10 @@ def block(program_name, is_main_program):
 
     gen_quad('end_block', program_name, '_', '_')
 
-    print("Print Symbol-Table:")
-    print_Symbol_table()
+    print_symbol_table()
     final()
     delete_scope()
-    print("Last scope deleted.")
+    print("Last scope has been deleted.")
 
 
 
@@ -921,11 +918,11 @@ def varlist():
     if(token == 'id_token'):
         c_file.write(word)
 
-        ent = Entity()							#Create an Entity
-        ent.type = 'VAR'						#
-        ent.name = word						    #
-        ent.variable.offset = compute_offset()	#
-        new_entity(ent)                         #
+        entity = Entity()
+        entity.type = 'variable'
+        entity.name = word
+        entity.variable.offset = compute_offset()
+        new_entity(entity)
 
         token ,word = lex()
         while(token == 'comma_token'):
@@ -934,11 +931,11 @@ def varlist():
             if(token == 'id_token' ):
                 c_file.write(word)
 
-                ent = Entity()							#Create an Entity
-                ent.type = 'VAR'						#
-                ent.name = word						    #
-                ent.variable.offset = compute_offset()	#
-                new_entity(ent)							#
+                entity = Entity()
+                entity.type = 'variable'
+                entity.name = word
+                entity.variable.offset = compute_offset()
+                new_entity(entity)
 
                 token,word = lex()
             else:
@@ -953,24 +950,24 @@ def subprogram(is_procedure):
     if(token == 'id_token' and is_procedure == 1):
         subprogram_name = word
 
-        ent = Entity()						#Create an Entity
-        ent.type = 'SUBPR'					#
-        ent.name = word					    #
-        ent.subprogram.type = 'Procedure'	#
-        ent.subprogram.nestingLevel = topScope.nestingLevel + 1 # gia TELIKO
-        new_entity(ent)						#
+        entity = Entity()
+        entity.name = word
+        entity.type = 'Sub_Program'
+        entity.subprogram.type = 'Procedure'
+        entity.subprogram.nestingLevel = topScope.nestingLevel + 1 # gia TELIKO
+        new_entity(entity)
 
         token,word = lex()
         funcbody(subprogram_name,0)
     elif(token == 'id_token' and is_procedure == 0):
         subprogram_name = word
 
-        ent = Entity()						#Create an Entity
-        ent.type = 'SUBPR'					#
-        ent.name = word					    #
-        ent.subprogram.type = 'Function'	#
-        ent.subprogram.nestingLevel = topScope.nestingLevel + 1 # gia TELIKO
-        new_entity(ent)						#
+        entity = Entity()
+        entity.type = 'Sub_Program'
+        entity.name = word
+        entity.subprogram.type = 'Function'
+        entity.subprogram.nestingLevel = topScope.nestingLevel + 1
+        new_entity(entity)
 
         token,word = lex()
         funcbody(subprogram_name,0)
@@ -1028,14 +1025,16 @@ def formalparlist():
 def formalparitem():
     global token,word,line
 
+    argument = Argument()
+
     if(token == 'in_token' ):
         token,word = lex()
         if(token == 'id_token'):
 
-            arg = Argument()		#Creation of a new argument. (Pinakas Symbolwn)
-            arg.name = word		    #
-            arg.parMode = 'CV'		#
-            new_argument(arg)		#
+
+            argument.name = word
+            argument.parMode = 'CV'
+            new_argument(argument)
 
             token,word = lex()
         else:
@@ -1045,19 +1044,14 @@ def formalparitem():
         token,word = lex()
         if(token == 'id_token'):
 
-            arg = Argument()		#Creation of a new argument. (Pinakas Symbolwn)
-            arg.name = word		    #
-            arg.parMode = 'REF'		#
-            new_argument(arg)		#
+            argument.name = word
+            argument.parMode = 'REF'
+            new_argument(argument)
 
             token,word = lex()
         else:
             print("SyntaxError : parameters was expected in line : " , line)
             exit(1)
-    #else:
-    #    print("SyntaxError :  undeclere function/procedure parameters in line : " , line)
-    #    exit(1)
-    #
 
 
 
@@ -1380,7 +1374,6 @@ def print_stat():
 
 
 
-
 def actualpars(is_function, id_name):
     global token,word,line,temp
 
@@ -1413,7 +1406,6 @@ def actualparlist():
 
 
 
-
 def actualparitem():
     global token,word,line
 
@@ -1432,7 +1424,6 @@ def actualparitem():
     else:
         print("SyntaxError :  expected 'in' or 'inout' in line : " , line)
         exit(1)
-
 
 
 
@@ -1661,6 +1652,7 @@ def optional_sign():
     global token,word,line
     addoper = add_oper()
     return addoper
+
 
 
 def create_int_file():
